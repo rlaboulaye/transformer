@@ -3,8 +3,7 @@ import argparse
 
 from text_encoder import TextEncoder
 from utils import set_seed, get_device, validate_task
-from data_utils import get_dataset
-
+from dataset import Dataset
 
 if __name__ == '__main__':
 
@@ -31,4 +30,4 @@ if __name__ == '__main__':
 	text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
 	n_vocab = len(text_encoder.encoder)
 
-	get_dataset(task)
+	dataset = Dataset(task, device)
