@@ -1,0 +1,15 @@
+{
+	"$schema": "http://json-schema.org/draft-04/schema",
+	"task_type": "DocumentClassification",
+	"train_file_path": "/users/grads/r/rdalbest/Documents/sentiment_datasets/LL1_airline_twitter_sentiment.csv",
+	"document_list"	: [
+		{
+			"column_indices": [
+				1
+			]
+		}
+	],
+	"target": {
+		"column_index": 2
+	}
+}

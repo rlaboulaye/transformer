@@ -1,0 +1,29 @@
+{
+	"$schema": "http://json-schema.org/draft-04/schema",
+	"task_type": "MultipleChoice",
+	"train_file_path": "/users/grads/r/rdalbest/Documents/cloze/cloze_test_val__spring2016 - cloze_test_ALL_val.csv",
+	"test_file_path": "/users/grads/r/rdalbest/Documents/cloze/cloze_test_test__spring2016 - cloze_test_ALL_test.csv",
+	"document_list"	: [
+		{
+			"column_indices": [
+				1,
+				2,
+				3,
+				4
+			]
+		},
+		{
+			"column_indices": [
+				5
+			]
+		},
+		{
+			"column_indices": [
+				6
+			]
+		}
+	],
+	"target": {
+		"column_index": 7
+	}
+}
