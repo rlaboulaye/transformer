@@ -8,7 +8,7 @@ from dataset import Dataset
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--verbose', type=bool, default=True)
+	parser.add_argument('--verbose', type=bool, default=False)
 	parser.add_argument('--seed', type=int, default=42)
 	parser.add_argument('--encoder_path', type=str, default='model_params/encoder_bpe_40000.json')
 	parser.add_argument('--bpe_path', type=str, default='model_params/vocab_40000.bpe')
@@ -30,4 +30,4 @@ if __name__ == '__main__':
 	text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
 	n_vocab = len(text_encoder.encoder)
 
-	dataset = Dataset(task, device)
+	dataset = Dataset(task, device, text_encoder, verbose)

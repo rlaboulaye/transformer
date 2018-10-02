@@ -4,8 +4,6 @@ import json
 import ftfy
 import spacy
 
-from utils import get_iterator
-
 
 class TextEncoder(object):
 
@@ -81,20 +79,9 @@ class TextEncoder(object):
 		self.cache[token] = encoded_word
 		return encoded_word
 
-	# documents is a 2d numpy array where each row contains a document and each column contains a different document section
-	def encode(self, documents, verbose=True):
-		documents_tokens = []
-		for document in get_iterator(documents, verbose):
-			document_tokens = [self.start_token]
-			for section_index, section in enumerate(document):
-				section = self.nlp(self.standardize_text(ftfy.fix_text(section)))
-				section_tokens = []
-				for token in section:
-					section_tokens.extend([self.encoder.get(t, 0) for t in self.bpe(token.text.lower()).split(' ')])
-				document_tokens.extend(section_tokens)
-				if section_index < len(document) - 1:
-					document_tokens.append(self.delimeter_token)
-				else:
-					document_tokens.append(self.classify_token)
-			documents_tokens.append(document_tokens)
-		return documents_tokens
+	def encode(self, document):
+		document = self.nlp(self.standardize_text(ftfy.fix_text(document)))
+		document_tokens = []
+		for token in document:
+			document_tokens.extend([self.encoder.get(t, 0) for t in self.bpe(token.text.lower()).split(' ')])
+		return document_tokens
