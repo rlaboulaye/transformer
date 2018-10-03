@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
 	text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
 	n_vocab = len(text_encoder.encoder)
-	device = 'cpu'
+
 	train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose)
 
 	for x, m, y in train_dataloader:

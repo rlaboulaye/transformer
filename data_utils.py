@@ -22,15 +22,11 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	else:
 		train_val_matrices, test_matrices = split_data(train_matrices, test_split)
 		train_matrices, validation_matrices = split_data(train_val_matrices, validation_split)
-	# The next two lines should be called when creating the tensors to avoid separating connected rows
-	# document_matrix = document_matrix.reshape(-1, max_sequence_length)
-	# mask_matrix = mask_matrix.reshape(-1, max_sequence_length)
 	train_set = Dataset(device, *train_matrices)
 	validation_set = Dataset(device, *validation_matrices)
 	test_set = Dataset(device, *test_matrices)
 	data_params = {
 			'batch_size': batch_size,
-			'num_workers': 1,
 			'shuffle': True
 	}
 	return data.DataLoader(train_set, **data_params), data.DataLoader(validation_set, **data_params), data.DataLoader(test_set, **data_params)
