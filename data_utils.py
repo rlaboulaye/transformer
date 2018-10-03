@@ -3,22 +3,40 @@ import numpy as np
 import pandas as pd
 
 
-def get_dataloaders(task, text_encoder, verbose):
-	dataframe = load_dataframe(task['train_file_path'])
-	documents_dataframe = create_documents(dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
+def get_dataloaders(task, text_encoder, test_split, validation_split, verbose):
+	train_dataframe = load_dataframe(task['train_file_path'])
+	train_document_matrix, train_mask_matrix = get_document_matrix(train_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
+	train_matrices = (train_document_matrix, train_mask_matrix)
+	if 'target' in task:
+		train_matrices += (train_dataframe[train_dataframe.columns[task['target']['column_index']]].values,)
+	if 'test_file_path' in task:
+		test_dataframe = load_dataframe(task['test_file_path'])
+		test_document_matrix, test_mask_matrix = get_document_matrix(test_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
+		test_matrices = (test_document_matrix, test_mask_matrix)
+		if 'target' in task:
+			test_matrices += (test_dataframe[test_dataframe.columns[task['target']['column_index']]].values,)
+		train_matrices, validation_matrices = split_data(train_matrices, validation_split)
+	else:
+		train_val_matrices, test_matrices = split_data(train_matrices, test_split)
+		train_matrices, validation_matrices = split_data(train_val_matrices, validation_split)
+	# The next two lines should be called when creating the tensors to avoid separating connected rows
+	# document_matrix = document_matrix.reshape(-1, max_sequence_length)
+	# mask_matrix = mask_matrix.reshape(-1, max_sequence_length)
+	print([matrix.shape for matrix in train_matrices])
+	print([matrix.shape for matrix in validation_matrices])
+	print([matrix.shape for matrix in test_matrices])
+
+def load_dataframe(path):
+	return pd.read_csv(path)
+
+def get_document_matrix(dataframe, document_list, task_type, text_encoder, verbose):
+	documents_dataframe = create_documents(dataframe, document_list, task_type, text_encoder, verbose)
 	max_sequence_length = max([documents_dataframe[column].apply(lambda x: len(x)).max() for column in documents_dataframe.columns])
 	document_matrices = [np.stack(documents_dataframe[column].apply(lambda x: np.pad(x, (0, max_sequence_length - len(x)), mode='constant')).values) for column in documents_dataframe.columns]
 	mask_matrices = [np.stack(documents_dataframe[column].apply(lambda x: np.pad(np.ones(len(x)), (0, max_sequence_length - len(x)), mode='constant')).values) for column in documents_dataframe.columns]
 	document_matrix = np.concatenate([document_matrix.reshape(-1, 1, max_sequence_length) for document_matrix in document_matrices], axis=1)
 	mask_matrix = np.concatenate([mask_matrix.reshape(-1, 1, max_sequence_length) for mask_matrix in mask_matrices], axis=1)
-	# train validate test split
-	document_matrix = document_matrix.reshape(-1, max_sequence_length)
-	mask_matrix = mask_matrix.reshape(-1, max_sequence_length)
-	print([text_encoder.decoder[token] for token in document_matrix[4]])
-	print([text_encoder.decoder[token] for token in document_matrix[5]])
-
-def load_dataframe(path):
-	return pd.read_csv(path)
+	return document_matrix, mask_matrix
 
 def create_documents(dataframe, document_list, task_type, text_encoder, verbose):
 	encoded_documents = []
@@ -43,17 +61,20 @@ def create_documents(dataframe, document_list, task_type, text_encoder, verbose)
 		assert(documents_dataframe.shape[1] == 1)
 		return documents_dataframe.progress_apply(lambda x: [text_encoder.start_token] + x + [text_encoder.classify_token], axis=1)
 
-def split_dataset(X, Y, test_split=.2, validation_split=.2):
-	assert(X.shape[0] == Y.shape[0])
-	permutation = np.random.permutation(X.shape[0])
-	X_permutated = X[permutation]
-	Y_permutated = Y[permutation]
-	train_val_end_index = round(X.shape[0] * float(1 - test_split))
-	train_end_index = round(train_val_end_index * float(1 - validation_split))
-	train_range = range(train_end_index)
-	validation_range = range(train_end_index, train_val_end_index)
-	test_range = range(train_val_end_index, X.shape[0])
-	train_set = [X[train_range], Y[train_range]]
-	validation_set = [X[validation_range], Y[validation_range]]
-	test_set = [X[test_range], Y[test_range]]
-	return train_set, validation_set, test_set
+def split_data(matrices, split=.2):
+	# Check that all matrices have the same number of rows
+	assert(1 == len(set([matrix.shape[0] for matrix in matrices])))
+	num_rows = matrices[0].shape[0]
+	permutation = np.random.permutation(num_rows)
+	split1_end_index = round(num_rows * float(1 - split))
+	split1_range = range(split1_end_index)
+	split2_range = range(split1_end_index, num_rows)
+	split1_matrices = ()
+	split2_matrices = ()
+	for matrix in matrices:
+		permuted_matrix = matrix[permutation]
+		split1_matrix = permuted_matrix[split1_range]
+		split2_matrix = permuted_matrix[split2_range]
+		split1_matrices += (split1_matrix,)
+		split2_matrices += (split2_matrix,)
+	return split1_matrices, split2_matrices

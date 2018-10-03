@@ -11,6 +11,8 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--verbose', type=bool, default=False)
 	parser.add_argument('--seed', type=int, default=42)
+	parser.add_argument('--test_split', type=float, default=.2)
+	parser.add_argument('--validation_split', type=float, default=.2)
 	parser.add_argument('--encoder_path', type=str, default='model_params/encoder_bpe_40000.json')
 	parser.add_argument('--bpe_path', type=str, default='model_params/vocab_40000.bpe')
 	parser.add_argument('--task_path', type=str)
@@ -31,4 +33,4 @@ if __name__ == '__main__':
 	text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
 	n_vocab = len(text_encoder.encoder)
 
-	get_dataloaders(task, text_encoder, verbose)
+	get_dataloaders(task, text_encoder, args.test_split, args.validation_split, verbose)
