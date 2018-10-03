@@ -1,9 +1,12 @@
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
+from torch.utils import data
+
+from dataset import Dataset
 
 
-def get_dataloaders(task, text_encoder, test_split, validation_split, verbose):
+def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size, device, verbose):
 	train_dataframe = load_dataframe(task['train_file_path'])
 	train_document_matrix, train_mask_matrix = get_document_matrix(train_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
 	train_matrices = (train_document_matrix, train_mask_matrix)
@@ -22,9 +25,15 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, verbose):
 	# The next two lines should be called when creating the tensors to avoid separating connected rows
 	# document_matrix = document_matrix.reshape(-1, max_sequence_length)
 	# mask_matrix = mask_matrix.reshape(-1, max_sequence_length)
-	print([matrix.shape for matrix in train_matrices])
-	print([matrix.shape for matrix in validation_matrices])
-	print([matrix.shape for matrix in test_matrices])
+	train_set = Dataset(device, *train_matrices)
+	validation_set = Dataset(device, *validation_matrices)
+	test_set = Dataset(device, *test_matrices)
+	data_params = {
+			'batch_size': batch_size,
+			'num_workers': 1,
+			'shuffle': True
+	}
+	return data.DataLoader(train_set, **data_params), data.DataLoader(validation_set, **data_params), data.DataLoader(test_set, **data_params)
 
 def load_dataframe(path):
 	return pd.read_csv(path)
@@ -58,6 +67,7 @@ def create_documents(dataframe, document_list, task_type, text_encoder, verbose)
 			multiple_choice_documents.append(documents_dataframe[[common_column_name, choice_column_name]].progress_apply(lambda x: [text_encoder.start_token] + x[common_column_name] + [text_encoder.delimeter_token] + x[choice_column_name] + [text_encoder.classify_token], axis=1))
 		return pd.concat(multiple_choice_documents, axis=1)
 	else:
+		tqdm.pandas(disable=not verbose, ncols=150, desc='Appending special tokens to 1 document for each instance')
 		assert(documents_dataframe.shape[1] == 1)
 		return documents_dataframe.progress_apply(lambda x: [text_encoder.start_token] + x + [text_encoder.classify_token], axis=1)
 

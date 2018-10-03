@@ -11,12 +11,12 @@
 				"QuestionAnswering"
 			]
 		},
-    "file_path": {
-      "type": "string"
-    },
-    "index": {
-      "type": "integer"
-    },
+		"file_path": {
+			"type": "string"
+		},
+		"index": {
+			"type": "integer"
+		},
 		"indices": {
 			"type": "array",
 			"minItems": 1,
@@ -25,48 +25,48 @@
 			}
 		},
 		"document": {
-      "description": "The column_indices point to text columns that will be concatenated into a single document.",
+			"description": "The column_indices point to text columns that will be concatenated into a single document.",
 			"type": "object",
-      "properties": {
-        "column_indices": {
-          "$ref": "#/definitions/indices"
-        }
-      }
+			"properties": {
+				"column_indices": {
+					"$ref": "#/definitions/indices"
+				}
+			}
 		},
 		"document_list": {
-      "description": "The documents to be used in the NLP task. The first document should be the principal document for each task. For MultipleChoice and QuestionAnswering, this will be the reference paragraph. For DocumentSimilarity, it can be either document.",
+			"description": "The documents to be used in the NLP task. The first document should be the principal document for each task. For MultipleChoice and QuestionAnswering, this will be the reference paragraph. For DocumentSimilarity, it can be either document.",
 			"type": "array",
 			"minItems": 1,
 			"items": {
 				"$ref": "#/definitions/document"
 			}
 		},
-    "target": {
-      "description": "This object points to the column index for the target. It should be used for all supervised tasks.",
-      "type": "object",
-      "properties": {
-        "column_index": {
-          "$ref": "#/definitions/index"
-        }
-      }
-    }
+		"target": {
+			"description": "This object points to the column index for the target. It should be used for all supervised tasks.",
+			"type": "object",
+			"properties": {
+				"column_index": {
+					"$ref": "#/definitions/index"
+				}
+			}
+		}
 	},
 	"properties": {
-    "task_type": {
-      "$ref": "#/definitions/task_type"
-    },
+		"task_type": {
+			"$ref": "#/definitions/task_type"
+		},
 		"train_file_path": {
 			"$ref": "#/definitions/file_path"
 		},
 		"test_file_path": {
 			"$ref": "#/definitions/file_path"
 		},
-    "document_list": {
-      "$ref": "#/definitions/document_list"
-    },
-    "target": {
-      "$ref": "#/definitions/target"
-    }
+		"document_list": {
+			"$ref": "#/definitions/document_list"
+		},
+		"target": {
+			"$ref": "#/definitions/target"
+		}
 	},
 	"required": [
 		"task_type",
