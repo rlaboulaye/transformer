@@ -53,19 +53,19 @@ if __name__ == '__main__':
 	    'clf_pdrop': 0.1
 	    })
 
-	max_sequence_length = train_dataloader.dataset.instances.shape[-1]
-	vocab_size = len(text_encoder.encoder) + max_sequence_length
+	sequence_dim = train_dataloader.dataset.instances.shape[-1]
+	vocab_size = len(text_encoder.encoder) + sequence_dim
 
-	dh_model = DoubleHeadModel(DEFAULT_CONFIG, text_encoder.classify_token, task['task_type'], vocab_size, max_sequence_length)
+	dh_model = DoubleHeadModel(DEFAULT_CONFIG, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
 
 	for x, m, y in train_dataloader:
-		x = x.view(-1, max_sequence_length)
-		m = m.view(-1, max_sequence_length)
+		x = x.view(-1, sequence_dim)
+		m = m.view(-1, sequence_dim)
 		print(x.shape)
 		print(m.shape)
 		print(y.shape)
 		break
 
 	#TODO: add positional encodings
-	#TODO: calculate max_sequence_length from both train and test
+	#TODO: calculate sequence_dim from both train and test
 	#TODO: add number of classes to schema for document classification

@@ -22,9 +22,10 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	else:
 		train_val_matrices, test_matrices = split_data(train_matrices, test_split)
 		train_matrices, validation_matrices = split_data(train_val_matrices, validation_split)
-	train_set = Dataset(device, *train_matrices)
-	validation_set = Dataset(device, *validation_matrices)
-	test_set = Dataset(device, *test_matrices)
+	vocab_size = len(text_encoder.encoder)
+	train_set = Dataset(device, vocab_size, *train_matrices)
+	validation_set = Dataset(device, vocab_size, *validation_matrices)
+	test_set = Dataset(device, vocab_size, *test_matrices)
 	data_params = {
 			'batch_size': batch_size,
 			'shuffle': True
