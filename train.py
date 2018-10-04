@@ -10,9 +10,19 @@ from model.double_head_model import DoubleHeadModel
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--verbose', type=bool, default=False)
+	parser.add_argument('--verbose', action='store_true')
 	parser.add_argument('--seed', type=int, default=42)
 	parser.add_argument('--batch_size', type=int, default=8)
+	# TODO Rename arguments
+	parser.add_argument('--n_embd', type=int, default=768)
+	parser.add_argument('--n_head', type=int, default=12)
+	parser.add_argument('--n_layer', type=int, default=12)
+	parser.add_argument('--embd_pdrop', type=float, default=.1)
+	parser.add_argument('--attn_pdrop', type=float, default=.1)
+	parser.add_argument('--resid_pdrop', type=float, default=.1)
+	parser.add_argument('--clf_pdrop', type=float, default=.1)
+	parser.add_argument('--afn', type=str, choices=['relu', 'swish', 'gelu'], default='gelu')
+	#
 	parser.add_argument('--test_split', type=float, default=.2)
 	parser.add_argument('--validation_split', type=float, default=.2)
 	parser.add_argument('--encoder_path', type=str, default='model_params/encoder_bpe_40000.json')
@@ -36,27 +46,10 @@ if __name__ == '__main__':
 
 	train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose)
 
-	class dotdict(dict):
-	    """dot.notation access to dictionary attributes"""
-	    __getattr__ = dict.get
-	    __setattr__ = dict.__setitem__
-	    __delattr__ = dict.__delitem__
-
-	DEFAULT_CONFIG = dotdict({
-		'n_embd': 768,
-	    'n_head': 12,
-	    'n_layer': 12,
-	    'embd_pdrop': 0.1,
-	    'attn_pdrop': 0.1,
-	    'resid_pdrop': 0.1,
-	    'afn': 'gelu',
-	    'clf_pdrop': 0.1
-	    })
-
-	sequence_dim = train_dataloader.dataset.instances.shape[-1]
+	sequence_dim = train_dataloader.dataset.sequence_dim
 	vocab_size = len(text_encoder.encoder) + sequence_dim
 
-	dh_model = DoubleHeadModel(DEFAULT_CONFIG, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
+	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
 	dh_model.to(device)
 
 	for x, m, y in train_dataloader:
