@@ -10,8 +10,8 @@ class Dataset(data.Dataset):
 		self.instances = instances
 		self.masks = masks
 		self.targets = targets
-		sequence_dim = self.instances.shape[-1]
-		self.X_positions = np.arange(vocab_size, vocab_size + sequence_dim)
+		self.sequence_dim = self.instances.shape[-1]
+		self.X_positions = np.arange(vocab_size, vocab_size + self.sequence_dim)
 
 	def __len__(self):
 		return self.instances.shape[0]
