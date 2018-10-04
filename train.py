@@ -59,13 +59,12 @@ if __name__ == '__main__':
 	dh_model = DoubleHeadModel(DEFAULT_CONFIG, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
 
 	for x, m, y in train_dataloader:
-		x = x.view(-1, sequence_dim)
+		x = x.view(-1, sequence_dim, 2)
 		m = m.view(-1, sequence_dim)
 		print(x.shape)
 		print(m.shape)
 		print(y.shape)
 		break
 
-	#TODO: add positional encodings
 	#TODO: calculate sequence_dim from both train and test
 	#TODO: add number of classes to schema for document classification
