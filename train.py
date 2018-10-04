@@ -57,13 +57,12 @@ if __name__ == '__main__':
 	vocab_size = len(text_encoder.encoder) + sequence_dim
 
 	dh_model = DoubleHeadModel(DEFAULT_CONFIG, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
+	dh_model.to(device)
 
 	for x, m, y in train_dataloader:
-		x = x.view(-1, sequence_dim, 2)
-		m = m.view(-1, sequence_dim)
-		print(x.shape)
-		print(m.shape)
-		print(y.shape)
+		lm_logits, task_logits = dh_model(x)
+		print(lm_logits.shape)
+		print(task_logits.shape)
 		break
 
 	#TODO: calculate sequence_dim from both train and test
