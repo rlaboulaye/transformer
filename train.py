@@ -4,6 +4,7 @@ import argparse
 from text_encoder import TextEncoder
 from utils import set_seed, get_device, validate_task
 from data_utils import get_dataloaders
+from model.double_head_model import DoubleHeadModel
 
 
 if __name__ == '__main__':
@@ -32,12 +33,39 @@ if __name__ == '__main__':
 	device = get_device(verbose)
 
 	text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
-	n_vocab = len(text_encoder.encoder)
 
 	train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose)
 
+	class dotdict(dict):
+	    """dot.notation access to dictionary attributes"""
+	    __getattr__ = dict.get
+	    __setattr__ = dict.__setitem__
+	    __delattr__ = dict.__delitem__
+
+	DEFAULT_CONFIG = dotdict({
+		'n_embd': 768,
+	    'n_head': 12,
+	    'n_layer': 12,
+	    'embd_pdrop': 0.1,
+	    'attn_pdrop': 0.1,
+	    'resid_pdrop': 0.1,
+	    'afn': 'gelu',
+	    'clf_pdrop': 0.1
+	    })
+
+	max_sequence_length = train_dataloader.dataset.instances.shape[-1]
+	vocab_size = len(text_encoder.encoder) + max_sequence_length
+
+	dh_model = DoubleHeadModel(DEFAULT_CONFIG, text_encoder.classify_token, task['task_type'], vocab_size, max_sequence_length)
+
 	for x, m, y in train_dataloader:
+		x = x.view(-1, max_sequence_length)
+		m = m.view(-1, max_sequence_length)
 		print(x.shape)
 		print(m.shape)
 		print(y.shape)
-		print()
+		break
+
+	#TODO: add positional encodings
+	#TODO: calculate max_sequence_length from both train and test
+	#TODO: add number of classes to schema for document classification
