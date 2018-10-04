@@ -1,9 +1,9 @@
 import json
 import argparse
 
-from text_encoder import TextEncoder
 from utils import set_seed, get_device, validate_task
-from data_utils import get_dataloaders
+from data.text_encoder import TextEncoder
+from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
 
 

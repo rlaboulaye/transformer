@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from torch.utils import data
 
-from dataset import Dataset
+from .dataset import Dataset
 
 
 def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size, device, verbose):
