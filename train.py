@@ -1,11 +1,18 @@
 import json
 import argparse
 
-from utils import set_seed, get_device, validate_task
+from utils import set_seed, get_device, validate_task, get_iterator
 from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
 
+
+def run_epoch(dataloader, model, optimizer, verbose):
+	for x, m, y in get_iterator(dataloader, verbose):
+		lm_logits, task_logits = model(x)
+		print(lm_logits.shape)
+		print(task_logits.shape)
+		break
 
 if __name__ == '__main__':
 
@@ -52,11 +59,8 @@ if __name__ == '__main__':
 	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
 	dh_model.to(device)
 
-	for x, m, y in train_dataloader:
-		lm_logits, task_logits = dh_model(x)
-		print(lm_logits.shape)
-		print(task_logits.shape)
-		break
+	run_epoch(train_dataloader, dh_model, None, verbose)
+
 
 	#TODO: calculate sequence_dim from both train and test
 	#TODO: add number of classes to schema for document classification
