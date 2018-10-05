@@ -1,0 +1,19 @@
+{
+	"$schema": "task_schema.json",
+	"task_type": "DocumentClassification",
+	"train_file": {
+		"file_path": "/users/data/d3m/datasets/training_datasets/LL1/LL1_apple_sentiment_analysis/LL1_apple_sentiment_analysis_dataset/tables/learningData.csv",
+		"file_type": "csv",
+		"file_header": true
+	},
+	"document_list"	: [
+		{
+			"column_indices": [
+				1
+			]
+		}
+	],
+	"target": {
+		"column_index": 2
+	}
+}
