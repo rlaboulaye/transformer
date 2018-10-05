@@ -1,7 +1,11 @@
 {
 	"$schema": "task_schema.json",
 	"task_type": "DocumentClassification",
-	"train_file_path": "/users/data/metanlp/nlp_datasets/sentence_agreement/agreement-sentence-agreement-DFE.csv",
+	"train_file": {
+		"file_path": "/users/data/metanlp/nlp_datasets/sentence_agreement/agreement-sentence-agreement-DFE.csv",
+		"file_type": "csv",
+		"file_header": true
+	},
     "source": "https://www.figure-eight.com/data-for-everyone/",
 	"document_list"	: [
 		{
@@ -11,6 +15,8 @@
 		}
 	],
 	"target": {
-		"column_index": 4
+		"column_indices": [
+			4
+		]
 	}
 }

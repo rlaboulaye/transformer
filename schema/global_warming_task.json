@@ -1,5 +1,6 @@
 {
 	"$schema": "task_schema.json",
+	"task_type": "DocumentClassification",
 	"train_file": {
 		"file_path": "/users/data/d3m/datasets/training_datasets/LL1/LL1_global_warming_sentiment/LL1_global_warming_sentiment_dataset/tables/learningData.csv",
 		"file_type": "csv",
@@ -13,7 +14,8 @@
 		}
 	],
 	"target": {
-		"column_index": 2
-	},
-	"task_type": "DocumentClassification"
+		"column_indices": [
+			2
+		]
+	}
 }
