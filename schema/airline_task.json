@@ -1,7 +1,11 @@
 {
 	"$schema": "task_schema.json",
 	"task_type": "DocumentClassification",
-	"train_file_path": "/users/grads/r/rdalbest/Documents/sentiment_datasets/LL1_airline_twitter_sentiment.csv",
+	"train_file": {
+		"file_path": "/users/grads/r/rdalbest/Documents/sentiment_datasets/LL1_airline_twitter_sentiment.csv",
+		"file_type": "csv",
+		"file_header": true
+	},
 	"document_list"	: [
 		{
 			"column_indices": [

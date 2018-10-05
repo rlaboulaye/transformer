@@ -14,6 +14,36 @@
 		"file_path": {
 			"type": "string"
 		},
+		"file_type": {
+			"type": "string",
+			"enum": [
+				"csv",
+				"tsv"
+			]
+		},
+		"file_header": {
+			"type": "boolean"
+		},
+		"file": {
+			"type": "object",
+			"properties": {
+				"file_path": {
+					"$ref": "#/definitions/file_path"
+				},
+				"file_type": {
+					"$ref": "#/definitions/file_type"
+				},
+				"file_header": {
+					"$ref": "#/definitions/file_header"
+				}
+			},
+			"required": [
+				"file_path",
+				"file_type",
+				"file_header"
+			]
+
+		},
 		"index": {
 			"type": "integer"
 		},
@@ -31,7 +61,10 @@
 				"column_indices": {
 					"$ref": "#/definitions/indices"
 				}
-			}
+			},
+			"required": [
+				"column_indices"
+			]
 		},
 		"document_list": {
 			"description": "The documents to be used in the NLP task. The first document should be the principal document for each task. For MultipleChoice and QuestionAnswering, this will be the reference paragraph. For DocumentSimilarity, it can be either document.",
@@ -48,18 +81,21 @@
 				"column_index": {
 					"$ref": "#/definitions/index"
 				}
-			}
+			},
+			"required": [
+				"column_index"
+			]
 		}
 	},
 	"properties": {
 		"task_type": {
 			"$ref": "#/definitions/task_type"
 		},
-		"train_file_path": {
-			"$ref": "#/definitions/file_path"
+		"train_file": {
+			"$ref": "#/definitions/file"
 		},
-		"test_file_path": {
-			"$ref": "#/definitions/file_path"
+		"test_file": {
+			"$ref": "#/definitions/file"
 		},
 		"document_list": {
 			"$ref": "#/definitions/document_list"
@@ -70,7 +106,7 @@
 	},
 	"required": [
 		"task_type",
-		"train_file_path",
+		"train_file",
 		"document_list"
 	]
 }
