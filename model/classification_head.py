@@ -6,7 +6,7 @@ class ClassificationHead(nn.Module):
 
     TODO: test this class."""
     def __init__(self, clf_token, cfg, n_class):
-        super(ClfHead, self).__init__()
+        super(ClassificationHead, self).__init__()
         self.n_embd = cfg.n_embd
         self.clf_token = clf_token
         self.dropout = nn.Dropout(cfg.clf_pdrop)
