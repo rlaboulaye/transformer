@@ -1,6 +1,7 @@
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import LabelEncoder
 from torch.utils import data
 
 from .dataset import Dataset
@@ -12,22 +13,24 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	train_document_matrix, train_mask_matrix = get_document_matrix(train_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
 	train_matrices = (train_document_matrix, train_mask_matrix)
 	if 'target' in task:
-		train_matrices += (train_dataframe[train_dataframe.columns[task['target']['column_index']]].values,)
+		train_target_matrix, target_encoders = get_target_matrix(train_dataframe, task['target']['column_indices'], task['task_type'])
+		train_matrices += (train_target_matrix,)
 	if 'test_file_path' in task:
 		test_file = task['test_file']
 		test_dataframe = load_dataframe(test_file['file_path'], test_file['file_type'], test_file['file_header'])
 		test_document_matrix, test_mask_matrix = get_document_matrix(test_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
 		test_matrices = (test_document_matrix, test_mask_matrix)
 		if 'target' in task:
-			test_matrices += (test_dataframe[test_dataframe.columns[task['target']['column_index']]].values,)
+			test_target_matrix, target_encoders = get_target_matrix(test_dataframe, task['target']['column_indices'], task['task_type'], target_encoders)
+			test_matrices += (test_target_matrix,)
 		train_matrices, validation_matrices = split_data(train_matrices, validation_split)
 	else:
 		train_val_matrices, test_matrices = split_data(train_matrices, test_split)
 		train_matrices, validation_matrices = split_data(train_val_matrices, validation_split)
 	vocab_size = len(text_encoder.encoder)
-	train_set = Dataset(device, vocab_size, *train_matrices)
-	validation_set = Dataset(device, vocab_size, *validation_matrices)
-	test_set = Dataset(device, vocab_size, *test_matrices)
+	train_set = Dataset(device, task['task_type'], vocab_size, *train_matrices)
+	validation_set = Dataset(device, task['task_type'], vocab_size, *validation_matrices)
+	test_set = Dataset(device, task['task_type'], vocab_size, *test_matrices)
 	data_params = {
 			'batch_size': batch_size,
 			'shuffle': True
@@ -45,6 +48,24 @@ def load_dataframe(path, file_type, has_header):
 		return pd.read_csv(path, sep=separator, header=0)
 	else:
 		return pd.read_csv(path, sep=separator)
+
+def get_target_matrix(dataframe, target_indices, task_type, encoders=None):
+	if task_type is "DocumentSimilarity":
+		return dataframe[dataframe.columns[target_indices]].values
+	else:
+		targets = []
+		if encoders is None:
+			encoders = ()
+			for index in target_indices:
+				target_col = dataframe[dataframe.columns[index]]
+				encoder = LabelEncoder()
+				targets.append(encoder.fit_transform(target_col).reshape(-1,1))
+				encoders += (encoder,)
+		else:
+			for encoder, index in zip(encoders, target_indices):
+				targets.append(encoder.transform(dataframe[dataframe.columns[index]]).reshape(-1,1))
+		target_matrix = np.concatenate(targets, axis=1)
+		return target_matrix, encoders
 
 def get_document_matrix(dataframe, document_list, task_type, text_encoder, verbose):
 	documents_dataframe = create_documents(dataframe, document_list, task_type, text_encoder, verbose)
