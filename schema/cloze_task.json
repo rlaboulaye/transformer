@@ -32,6 +32,8 @@
 		}
 	],
 	"target": {
-		"column_index": 7
+		"column_indices": [
+			7
+		]
 	}
 }

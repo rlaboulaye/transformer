@@ -78,12 +78,12 @@
 			"description": "This object points to the column index for the target. It should be used for all supervised tasks.",
 			"type": "object",
 			"properties": {
-				"column_index": {
-					"$ref": "#/definitions/index"
+				"column_indices": {
+					"$ref": "#/definitions/indices"
 				}
 			},
 			"required": [
-				"column_index"
+				"column_indices"
 			]
 		}
 	},
