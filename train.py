@@ -1,16 +1,35 @@
 import json
 import argparse
 
-from text_encoder import TextEncoder
-from utils import set_seed, get_device, validate_task
-from data_utils import get_dataloaders
+from utils import set_seed, get_device, validate_task, get_iterator
+from data.text_encoder import TextEncoder
+from data.data_utils import get_dataloaders
+from model.double_head_model import DoubleHeadModel
 
+
+def run_epoch(dataloader, model, optimizer, verbose):
+	for x, m, y in get_iterator(dataloader, verbose):
+		lm_logits, task_logits = model(x)
+		print(lm_logits.shape)
+		print(task_logits.shape)
+		break
 
 if __name__ == '__main__':
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--verbose', type=bool, default=False)
+	parser.add_argument('--verbose', action='store_true')
 	parser.add_argument('--seed', type=int, default=42)
+	parser.add_argument('--batch_size', type=int, default=8)
+	# TODO Rename arguments
+	parser.add_argument('--n_embd', type=int, default=768)
+	parser.add_argument('--n_head', type=int, default=12)
+	parser.add_argument('--n_layer', type=int, default=12)
+	parser.add_argument('--embd_pdrop', type=float, default=.1)
+	parser.add_argument('--attn_pdrop', type=float, default=.1)
+	parser.add_argument('--resid_pdrop', type=float, default=.1)
+	parser.add_argument('--clf_pdrop', type=float, default=.1)
+	parser.add_argument('--afn', type=str, choices=['relu', 'swish', 'gelu'], default='gelu')
+	#
 	parser.add_argument('--test_split', type=float, default=.2)
 	parser.add_argument('--validation_split', type=float, default=.2)
 	parser.add_argument('--encoder_path', type=str, default='model_params/encoder_bpe_40000.json')
@@ -31,6 +50,17 @@ if __name__ == '__main__':
 	device = get_device(verbose)
 
 	text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
-	n_vocab = len(text_encoder.encoder)
 
-	get_dataloaders(task, text_encoder, args.test_split, args.validation_split, verbose)
+	train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose)
+
+	sequence_dim = train_dataloader.dataset.sequence_dim
+	vocab_size = len(text_encoder.encoder) + sequence_dim
+
+	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
+	dh_model.to(device)
+
+	run_epoch(train_dataloader, dh_model, None, verbose)
+
+
+	#TODO: calculate sequence_dim from both train and test
+	#TODO: add number of classes to schema for document classification
