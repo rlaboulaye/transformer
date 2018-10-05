@@ -7,13 +7,15 @@ from .dataset import Dataset
 
 
 def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size, device, verbose):
-	train_dataframe = load_dataframe(task['train_file_path'])
+	train_file = task['train_file']
+	train_dataframe = load_dataframe(train_file['file_path'], train_file['file_type'], train_file['file_header'])
 	train_document_matrix, train_mask_matrix = get_document_matrix(train_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
 	train_matrices = (train_document_matrix, train_mask_matrix)
 	if 'target' in task:
 		train_matrices += (train_dataframe[train_dataframe.columns[task['target']['column_index']]].values,)
 	if 'test_file_path' in task:
-		test_dataframe = load_dataframe(task['test_file_path'])
+		test_file = task['test_file']
+		test_dataframe = load_dataframe(test_file['file_path'], test_file['file_type'], test_file['file_header'])
 		test_document_matrix, test_mask_matrix = get_document_matrix(test_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
 		test_matrices = (test_document_matrix, test_mask_matrix)
 		if 'target' in task:
@@ -32,8 +34,17 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	}
 	return data.DataLoader(train_set, **data_params), data.DataLoader(validation_set, **data_params), data.DataLoader(test_set, **data_params)
 
-def load_dataframe(path):
-	return pd.read_csv(path)
+def load_dataframe(path, file_type, has_header):
+	if file_type == 'csv':
+		separator = ','
+	elif file_type == 'tsv':
+		separator = sep='\t'
+	else:
+		raise NotImplementedError('Cannot load {} file type'.format(file_type))
+	if has_header:
+		return pd.read_csv(path, sep=separator, header=0)
+	else:
+		return pd.read_csv(path, sep=separator)
 
 def get_document_matrix(dataframe, document_list, task_type, text_encoder, verbose):
 	documents_dataframe = create_documents(dataframe, document_list, task_type, text_encoder, verbose)

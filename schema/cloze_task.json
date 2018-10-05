@@ -1,8 +1,16 @@
 {
 	"$schema": "task_schema.json",
 	"task_type": "MultipleChoice",
-	"train_file_path": "/users/grads/r/rdalbest/Documents/cloze/cloze_test_val__spring2016 - cloze_test_ALL_val.csv",
-	"test_file_path": "/users/grads/r/rdalbest/Documents/cloze/cloze_test_test__spring2016 - cloze_test_ALL_test.csv",
+	"train_file": {
+		"file_path": "/users/grads/r/rdalbest/Documents/cloze/cloze_test_val__spring2016 - cloze_test_ALL_val.csv",
+		"file_type": "csv",
+		"file_header": true
+	},
+	"test_file": {
+		"file_path": "/users/grads/r/rdalbest/Documents/cloze/cloze_test_test__spring2016 - cloze_test_ALL_test.csv",
+		"file_type": "csv",
+		"file_header": true
+	},
 	"document_list"	: [
 		{
 			"column_indices": [
