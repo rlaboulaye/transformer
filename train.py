@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from utils import set_seed, get_device, validate_task, get_iterator
+from utils import set_seed, get_device, validate_task, get_iterator, log
 from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
@@ -13,9 +13,20 @@ from opt import OpenAIAdam
 from loss import MultipleChoiceLossCompute, ClassificationLossCompute, GenericLossesCompute
 
 
+def score(dataloader, model, loss_functiogit n):
+	# Compute the accuracy
+	logits = []
+	cost = 0
+	with torch.no_grad:
+		model.eval()
+		for x, m, y in get_iterator(dataloader):
+			# TODO compute accuracy
+			pass
+
 def run_epoch(dataloader, model, compute_loss_fct, optimizer=None, test=False, verbose=True):
 	losses = []
 	for x, m, y in get_iterator(dataloader, verbose):
+		model.train()
 		lm_logits, task_logits = model(x)
 		train_loss, task_loss, lm_loss = compute_loss_fct(x, y, m, task_logits, lm_logits)
 		if not test:
@@ -23,6 +34,7 @@ def run_epoch(dataloader, model, compute_loss_fct, optimizer=None, test=False, v
 			optimizer.step()
 			optimizer.zero_grad()
 		losses.append(train_loss.item())
+
 	print(np.mean(losses))
 	# Cloze expected output: 27.89827631632487, 21.38771795272827, 18.45592082977295
 	# Airline expected output: 19.27845308886453
@@ -187,6 +199,7 @@ if __name__ == '__main__':
 	for epoch in range(args.n_iter):
 		print('Running epoch {}'.format(epoch))
 		run_epoch(train_dataloader, dh_model, compute_loss_fct, model_opt, test=False, verbose=verbose)
+
 
 	#TODO: calculate sequence_dim from both train and test
 	#TODO: add number of classes to schema for document classification
