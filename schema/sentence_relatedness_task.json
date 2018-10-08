@@ -1,6 +1,6 @@
 {
 	"$schema": "task_schema.json",
-	"task_type": "Similarity",
+	"task_type": "DocumentSimilarity",
 	"train_file": {
 		"file_path": "/users/data/metanlp/nlp_datasets/related_sentences/1377882923_sentence_pairs.csv",
 		"file_type": "csv",
