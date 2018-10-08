@@ -139,6 +139,13 @@ if __name__ == '__main__':
 	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
 
 	#
+	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
+	torch.save(dh_model.state_dict(), 'weights.pth')
+	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
+	dh_model.load_state_dict(torch.load('weights.pth'))
+	#
+
+	#
 	criterion = nn.CrossEntropyLoss(reduce=False)
 	n_updates_total = (train_dataloader.dataset.instances.shape[0] // args.batch_size) * args.n_iter
 	model_opt = OpenAIAdam(dh_model.parameters(),
@@ -156,7 +163,6 @@ if __name__ == '__main__':
 												 criterion,
 												 args.lm_coef,
 												 model_opt)
-	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
 	#
 
 	dh_model.to(device)
