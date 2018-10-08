@@ -65,6 +65,8 @@ def get_target_matrix(dataframe, target_indices, task_type, encoders=None):
 			for encoder, index in zip(encoders, target_indices):
 				targets.append(encoder.transform(dataframe[dataframe.columns[index]]).reshape(-1,1))
 		target_matrix = np.concatenate(targets, axis=1)
+		if target_matrix.shape[1] == 1:
+			target_matrix = target_matrix.reshape(-1)
 		return target_matrix, encoders
 
 def get_document_matrix(dataframe, document_list, task_type, text_encoder, verbose):
