@@ -10,7 +10,7 @@ from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 
 
-def get_iterator(obj, verbose):
+def get_iterator(obj, verbose=False):
 	if verbose:
 		return tqdm(obj, ncols=80)
 	return iter(obj)
@@ -34,3 +34,9 @@ def validate_task(task, task_schema_path='schema/task_schema.json'):
 		validate(task, task_schema)
 	except ValidationError as err:
 		sys.exit('EXCEPTION: THE TASK FAILED TO VALIDATE AGAINST THE TASK SCHEMA.\n\n{}'.format(err))
+
+def log():
+	pass
+
+
+
