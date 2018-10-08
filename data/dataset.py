@@ -28,7 +28,7 @@ class Dataset(data.Dataset):
 		X_value[:, :, 0] = X_tokens
 		X_value[:, :, 1] = self.X_positions
 		X = torch.tensor(X_value, dtype=torch.int64, device=self.device)
-		M = torch.tensor(self.masks[index], dtype=torch.int64, device=self.device)
+		M = torch.tensor(self.masks[index], dtype=torch.float32, device=self.device)
 		if self.targets is None:
 			return X, M
 		else:
