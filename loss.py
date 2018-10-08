@@ -45,7 +45,7 @@ class ClassificationLossCompute:
     def __call__(self, X, Y, M, clf_logits, lm_logits=None, only_return_losses=False):
         # Language modeling loss
         if lm_logits is not None:
-            x_shifted = X[:, 1:, 0].contiguous().view(-1)
+            x_shifted = X[:, :, 1:, 0].contiguous().view(-1)
             M         = M.view(-1, M.size(-1))
             lm_losses = self.lm_criterion(lm_logits, x_shifted)
             lm_losses = lm_losses.view(X.size(0), X.size(-2) - 1)

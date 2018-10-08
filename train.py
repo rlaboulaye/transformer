@@ -10,7 +10,7 @@ from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
 from opt import OpenAIAdam
-from loss import MultipleChoiceLossCompute
+from loss import MultipleChoiceLossCompute, ClassificationLossCompute
 
 
 def run_epoch(dataloader, model, compute_loss_fct, verbose):
@@ -125,6 +125,7 @@ if __name__ == '__main__':
 	with open(task_path, 'r') as task_file:
 		task = json.load(task_file)
 	validate_task(task)
+	task_type = task['task_type']
 
 	set_seed(args.seed)
 	device = get_device(verbose)
@@ -136,12 +137,12 @@ if __name__ == '__main__':
 	sequence_dim = train_dataloader.dataset.sequence_dim
 	vocab_size = len(text_encoder.encoder) + sequence_dim
 
-	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
+	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
 
 	#
 	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
 	torch.save(dh_model.state_dict(), 'weights.pth')
-	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task['task_type'], vocab_size, sequence_dim)
+	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
 	dh_model.load_state_dict(torch.load('weights.pth'))
 	#
 
@@ -159,10 +160,18 @@ if __name__ == '__main__':
 							l2=args.l2,
 							vector_l2=args.vector_l2,
 							max_grad_norm=args.max_grad_norm)
-	compute_loss_fct = MultipleChoiceLossCompute(criterion,
-												 criterion,
-												 args.lm_coef,
-												 model_opt)
+	if task_type == 'MultipleChoice':
+		compute_loss_fct = MultipleChoiceLossCompute(criterion,
+													 criterion,
+													 args.lm_coef,
+													 model_opt)
+	elif task_type == 'DocumentClassification':
+		compute_loss_fct = ClassificationLossCompute(criterion,
+													 criterion,
+													 args.lm_coef,
+													 model_opt)
+	else:
+		raise NotImplementedError()
 	#
 
 	dh_model.to(device)
