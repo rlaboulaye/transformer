@@ -10,16 +10,22 @@ from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
 from opt import OpenAIAdam
-from loss import MultipleChoiceLossCompute, ClassificationLossCompute
+from loss import MultipleChoiceLossCompute, ClassificationLossCompute, GenericLossesCompute
 
 
-def run_epoch(dataloader, model, compute_loss_fct, verbose):
+def run_epoch(dataloader, model, compute_loss_fct, optimizer=None, test=False, verbose=True):
 	losses = []
 	for x, m, y in get_iterator(dataloader, verbose):
 		lm_logits, task_logits = model(x)
-		loss = compute_loss_fct(x, y, m, task_logits, lm_logits)
-		losses.append(loss)
+		train_loss, task_loss, lm_loss = compute_loss_fct(x, y, m, task_logits, lm_logits)
+		if not test:
+			train_loss.backward()
+			optimizer.step()
+			optimizer.zero_grad()
+		losses.append(train_loss.item())
 	print(np.mean(losses))
+	# Cloze expected output: 27.89827631632487, 21.38771795272827, 18.45592082977295
+	# Airline expected output: 19.27845308886453
 
 def load_openai_pretrained_model(model, n_ctx=-1, n_special=-1, n_transfer=12, n_embd=768, path='./model_params/',
 		path_names='./'):
@@ -160,26 +166,27 @@ if __name__ == '__main__':
 							l2=args.l2,
 							vector_l2=args.vector_l2,
 							max_grad_norm=args.max_grad_norm)
-	if task_type == 'MultipleChoice':
-		compute_loss_fct = MultipleChoiceLossCompute(criterion,
-													 criterion,
-													 args.lm_coef,
-													 model_opt)
-	elif task_type == 'DocumentClassification':
-		compute_loss_fct = ClassificationLossCompute(criterion,
-													 criterion,
-													 args.lm_coef,
-													 model_opt)
-	else:
-		raise NotImplementedError()
-	#
+	# if task_type == 'MultipleChoice':
+	# 	compute_loss_fct = MultipleChoiceLossCompute(criterion,
+	# 												 criterion,
+	# 												 args.lm_coef,
+	# 												 model_opt)
+	# elif task_type == 'DocumentClassification':
+	# 	compute_loss_fct = ClassificationLossCompute(criterion,
+	# 												 criterion,
+	# 												 args.lm_coef,
+	# 												 model_opt)
+	# else:
+	# 	raise NotImplementedError()
+
+	compute_loss_fct = GenericLossesCompute(criterion, criterion, args.lm_coef)
 
 	dh_model.to(device)
 
+	# train model
 	for epoch in range(args.n_iter):
 		print('Running epoch {}'.format(epoch))
-		run_epoch(train_dataloader, dh_model, compute_loss_fct, verbose)
-
+		run_epoch(train_dataloader, dh_model, compute_loss_fct, model_opt, test=False, verbose=verbose)
 
 	#TODO: calculate sequence_dim from both train and test
 	#TODO: add number of classes to schema for document classification

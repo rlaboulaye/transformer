@@ -48,7 +48,7 @@ class ClassificationLossCompute:
             x_shifted = X[:, :, 1:, 0].contiguous().view(-1)
             M         = M.view(-1, M.size(-1))
             lm_losses = self.lm_criterion(lm_logits, x_shifted)
-            lm_losses = lm_losses.view(X.size(0), X.size(-2) - 1)
+            lm_losses = lm_losses.view(X.size(0), X.size(2) - 1)
             lm_losses = lm_losses * M[:, 1:]
             lm_losses = lm_losses.sum(1) / torch.sum(M[:, 1:], 1)
         # Classification loss
@@ -66,4 +66,32 @@ class ClassificationLossCompute:
             self.opt.zero_grad()
         return train_loss.item()
 
-# TODO Implement a LossCompute class for similiraty tasks.
+
+class GenericLossesCompute:
+    """A Loss compute for classification and multiple choice tasks"""
+
+    def __init__(self, lm_criterion, task_criterion, lm_coef):
+        self.lm_criterion = lm_criterion
+        self.task_criterion = task_criterion
+        self.lm_coef = lm_coef
+
+    def __call__(self, X, Y, M, task_logits, lm_logits=None):
+        # Task loss
+        task_losses = self.task_criterion(task_logits, Y)
+        # Language modeling loss
+        if lm_logits is not None:
+            x_shifted = X[:, :, 1:, 0].contiguous().view(-1)  # Shape: 252
+            # TODO replace M = M.view(-1, M.size(2))
+            M = M.view(-1, M.size(-1))
+            lm_losses = self.lm_criterion(lm_logits, x_shifted)
+            lm_losses = lm_losses.view(X.size(0) * X.size(1), X.size(2) - 1)
+            lm_losses = lm_losses * M[:, 1:]
+            lm_losses = lm_losses.sum(1) / torch.sum(M[:, 1:], 1)
+            if self.lm_coef > 0:
+                train_loss = task_losses.sum() + self.lm_coef * lm_losses.sum()
+                return train_loss, task_losses, lm_losses
+        else:
+            train_loss = task_losses.sum()
+            return train_loss, task_losses
+
+# TODO Implement a LossCompute class for similarity tasks.
