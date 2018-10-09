@@ -10,6 +10,10 @@ from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 
 
+def verbose_print(verbose, *args):
+	if verbose:
+		print(*args)
+
 def get_iterator(obj, verbose=False):
 	if verbose:
 		return tqdm(obj, ncols=80)

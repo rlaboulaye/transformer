@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from utils import set_seed, get_device, validate_task, get_iterator, log
+from utils import set_seed, get_device, validate_task, get_iterator, verbose_print, log
 from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
@@ -45,7 +45,7 @@ def load_openai_pretrained_model(model, n_ctx=-1, n_special=-1, n_transfer=12, n
 		path_names='./'):
 	import re
 	# Load weights from TF model
-	print("Loading weights...")
+	verbose_print("Loading weights...")
 	names = json.load(open(path_names + 'parameters_names.json'))
 	shapes = json.load(open(path + 'params_shapes.json'))
 	offsets = np.cumsum([np.prod(shape) for shape in shapes])
@@ -139,7 +139,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 	verbose = args.verbose
 	if verbose:
-		print(args)
+		verbose_print(args)
 
 	task_path = args.task_path
 	with open(task_path, 'r') as task_file:
@@ -185,15 +185,15 @@ if __name__ == '__main__':
 
 	# train model
 	for epoch in range(args.n_iter):
-		print('Running epoch {}'.format(epoch))
-		print('Training')
+		verbose_print('Running epoch {}'.format(epoch))
+		verbose_print('Training')
 		train_loss, train_accuracy = run_epoch(train_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., optimizer=model_opt, verbose=verbose)
-		print('Train Loss: {}'.format(train_loss))
-		print('Train Accuracy: {}'.format(train_accuracy))
-		print('Validation')
+		verbose_print('Train Loss: {}'.format(train_loss))
+		verbose_print('Train Accuracy: {}'.format(train_accuracy))
+		verbose_print('Validation')
 		validation_loss, validation_accuracy = run_epoch(validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
-		print('Validation Loss: {}'.format(validation_loss))
-		print('Validation Accuracy: {}'.format(validation_accuracy))
+		verbose_print('Validation Loss: {}'.format(validation_loss))
+		verbose_print('Validation Accuracy: {}'.format(validation_accuracy))
 
 
 	#TODO: calculate sequence_dim from both train and test
