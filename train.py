@@ -29,7 +29,7 @@ def run_epoch(dataloader, model, lm_criterion, task_critetion, lm_coef, task_coe
 	for x, m, y in get_iterator(dataloader, verbose):
 		lm_logits, task_logits = model(x)
 		double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_critetion, lm_coef, task_coef)
-		if optimizer:
+		if optimizer is not None:
 			double_head_loss.backward()
 			optimizer.step()
 			optimizer.zero_grad()
@@ -193,6 +193,7 @@ if __name__ == '__main__':
 		validation_loss, validation_accuracy = run_epoch(validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
 		verbose_print(verbose, 'Validation Loss: {}'.format(validation_loss))
 		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracy))
+	verbose_print(verbose, 'Testing')
 	test_loss, test_accuracy = run_epoch(test_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
 	verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
 	verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
