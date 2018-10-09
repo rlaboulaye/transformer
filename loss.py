@@ -15,13 +15,15 @@ def compute_task_loss(Y, task_logits, task_criterion):
     return task_losses.sum()
 
 def compute_double_head_loss(X, Y, M, lm_logits, task_logits, lm_criterion, task_criterion, lm_coef, task_coef):
+    lm_loss = 0
     if lm_coef != 0:
         lm_loss = compute_language_model_loss(X, M, lm_logits, lm_criterion)
-    else: 
-        lm_loss = 0
+    task_loss = 0
     if task_coef != 0:
         task_loss = compute_task_loss(Y, task_logits, task_criterion)
-    else:
-        task_loss = 0
     double_head_loss = lm_coef * lm_loss + task_coef * task_loss
     return double_head_loss, lm_loss, task_loss
+
+def compute_accuracy(Y, task_logits):
+    predictions = task_logits.view(Y.shape[0], -1).argmax(-1)
+    return (predictions == Y).float().mean()

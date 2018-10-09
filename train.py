@@ -10,7 +10,7 @@ from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
 from opt import OpenAIAdam
-from loss import compute_double_head_loss
+from loss import compute_double_head_loss, compute_accuracy
 
 
 def score(dataloader, model, loss_function):
@@ -25,17 +25,20 @@ def score(dataloader, model, loss_function):
 
 def run_epoch(dataloader, model, lm_criterion, task_critetion, lm_coef, task_coef, optimizer=None, verbose=False):
 	losses = []
+	accuracies = []
 	for x, m, y in get_iterator(dataloader, verbose):
-		model.train()
 		lm_logits, task_logits = model(x)
 		double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_critetion, lm_coef, task_coef)
 		if optimizer:
 			optimizer.zero_grad()
 			double_head_loss.backward()
 			optimizer.step()
-		losses.append(double_head_loss.item())
-
+		if task_coef != 0:
+			accuracy = compute_accuracy(y, task_logits)
+		losses.extend([double_head_loss.item()] * x.shape[0])
+		accuracies.extend([accuracy.item()] * x.shape[0])
 	print(np.mean(losses))
+	print(np.mean(accuracies))
 	# Cloze expected output: 27.89827631632487, 21.38771795272827, 18.45592082977295
 	# Airline expected output: 19.27845308886453
 
