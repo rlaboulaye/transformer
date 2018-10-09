@@ -30,11 +30,10 @@ def run_epoch(dataloader, model, lm_criterion, task_critetion, lm_coef, task_coe
 		lm_logits, task_logits = model(x)
 		double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_critetion, lm_coef, task_coef)
 		if optimizer:
-			optimizer.zero_grad()
 			double_head_loss.backward()
 			optimizer.step()
-		if task_coef != 0:
-			accuracy = compute_accuracy(y, task_logits)
+			optimizer.zero_grad()
+		accuracy = compute_accuracy(y, task_logits)
 		losses.extend([double_head_loss.cpu().item()] * x.shape[0])
 		accuracies.extend([accuracy.cpu().item()] * x.shape[0])
 	return np.mean(losses), np.mean(accuracies)
@@ -186,7 +185,7 @@ if __name__ == '__main__':
 	# train model
 	for epoch in range(args.n_iter):
 		verbose_print(verbose, 'Running epoch {}'.format(epoch))
-		verbose_print(verbose, verbose, 'Training')
+		verbose_print(verbose, 'Training')
 		train_loss, train_accuracy = run_epoch(train_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., optimizer=model_opt, verbose=verbose)
 		verbose_print(verbose, 'Train Loss: {}'.format(train_loss))
 		verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracy))
@@ -194,7 +193,9 @@ if __name__ == '__main__':
 		validation_loss, validation_accuracy = run_epoch(validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
 		verbose_print(verbose, 'Validation Loss: {}'.format(validation_loss))
 		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracy))
-
+	test_loss, test_accuracy = run_epoch(test_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
+	verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
+	verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
 
 	#TODO: calculate sequence_dim from both train and test
 	#TODO: add number of classes to schema for document classification
