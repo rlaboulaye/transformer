@@ -45,7 +45,7 @@ def load_openai_pretrained_model(model, n_ctx=-1, n_special=-1, n_transfer=12, n
 		path_names='./'):
 	import re
 	# Load weights from TF model
-	verbose_print("Loading weights...")
+	verbose_print(verbose, "Loading weights...")
 	names = json.load(open(path_names + 'parameters_names.json'))
 	shapes = json.load(open(path + 'params_shapes.json'))
 	offsets = np.cumsum([np.prod(shape) for shape in shapes])
@@ -139,7 +139,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 	verbose = args.verbose
 	if verbose:
-		verbose_print(args)
+		verbose_print(verbose, args)
 
 	task_path = args.task_path
 	with open(task_path, 'r') as task_file:
@@ -185,15 +185,15 @@ if __name__ == '__main__':
 
 	# train model
 	for epoch in range(args.n_iter):
-		verbose_print('Running epoch {}'.format(epoch))
-		verbose_print('Training')
+		verbose_print(verbose, 'Running epoch {}'.format(epoch))
+		verbose_print(verbose, verbose, 'Training')
 		train_loss, train_accuracy = run_epoch(train_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., optimizer=model_opt, verbose=verbose)
-		verbose_print('Train Loss: {}'.format(train_loss))
-		verbose_print('Train Accuracy: {}'.format(train_accuracy))
-		verbose_print('Validation')
+		verbose_print(verbose, 'Train Loss: {}'.format(train_loss))
+		verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracy))
+		verbose_print(verbose, 'Validation')
 		validation_loss, validation_accuracy = run_epoch(validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
-		verbose_print('Validation Loss: {}'.format(validation_loss))
-		verbose_print('Validation Accuracy: {}'.format(validation_accuracy))
+		verbose_print(verbose, 'Validation Loss: {}'.format(validation_loss))
+		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracy))
 
 
 	#TODO: calculate sequence_dim from both train and test
