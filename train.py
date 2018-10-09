@@ -26,6 +26,10 @@ def score(dataloader, model, loss_function):
 def run_epoch(dataloader, model, lm_criterion, task_critetion, lm_coef, task_coef, optimizer=None, verbose=False):
 	losses = []
 	accuracies = []
+	if optimizer is None:
+		model.eval()
+	else:
+		model.train()
 	for x, m, y in get_iterator(dataloader, verbose):
 		lm_logits, task_logits = model(x)
 		double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_critetion, lm_coef, task_coef)
@@ -162,6 +166,7 @@ if __name__ == '__main__':
 	# load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
 	# torch.save(dh_model.state_dict(), 'weights.pth')
 	# dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
+	verbose_print('Loading Weights')
 	dh_model.load_state_dict(torch.load('weights.pth'))
 	#
 
@@ -190,11 +195,13 @@ if __name__ == '__main__':
 		verbose_print(verbose, 'Train Loss: {}'.format(train_loss))
 		verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracy))
 		verbose_print(verbose, 'Validation')
-		validation_loss, validation_accuracy = run_epoch(validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
+		with torch.no_grad():
+			validation_loss, validation_accuracy = run_epoch(validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
 		verbose_print(verbose, 'Validation Loss: {}'.format(validation_loss))
 		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracy))
 	verbose_print(verbose, 'Testing')
-	test_loss, test_accuracy = run_epoch(test_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
+	with torch.no_grad():
+		test_loss, test_accuracy = run_epoch(test_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
 	verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
 	verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
 
