@@ -13,16 +13,6 @@ from opt import OpenAIAdam
 from loss import compute_double_head_loss, compute_accuracy
 
 
-def score(dataloader, model, loss_function):
-	# Compute the accuracy
-	logits = []
-	cost = 0
-	with torch.no_grad:
-		model.eval()
-		for x, m, y in get_iterator(dataloader):
-			# TODO compute accuracy
-			pass
-
 def run_epoch(dataloader, model, lm_criterion, task_critetion, lm_coef, task_coef, optimizer=None, verbose=False):
 	losses = []
 	accuracies = []
