@@ -71,7 +71,9 @@ def get_target_matrix(dataframe, target_indices, task_type, encoders=None):
 
 def get_document_matrix(dataframe, document_list, task_type, text_encoder, verbose):
 	documents_dataframe = create_documents(dataframe, document_list, task_type, text_encoder, verbose)
+	# TODO replace max_sequence length
 	max_sequence_length = max([documents_dataframe[column].apply(lambda x: len(x)).max() for column in documents_dataframe.columns])
+	# max_sequence_length = 77
 	document_matrices = [np.stack(documents_dataframe[column].apply(lambda x: np.pad(x, (0, max_sequence_length - len(x)), mode='constant')).values) for column in documents_dataframe.columns]
 	mask_matrices = [np.stack(documents_dataframe[column].apply(lambda x: np.pad(np.ones(len(x)), (0, max_sequence_length - len(x)), mode='constant')).values) for column in documents_dataframe.columns]
 	document_matrix = np.concatenate([document_matrix.reshape(-1, 1, max_sequence_length) for document_matrix in document_matrices], axis=1)

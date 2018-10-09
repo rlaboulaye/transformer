@@ -39,8 +39,16 @@ def validate_task(task, task_schema_path='schema/task_schema.json'):
 	except ValidationError as err:
 		sys.exit('EXCEPTION: THE TASK FAILED TO VALIDATE AGAINST THE TASK SCHEMA.\n\n{}'.format(err))
 
-def log():
-	pass
+class Logger():
 
+	def __init__(self, file, verbose):
+		self.vprint = print if verbose else lambda *a, **k: None
+		self.file = file
 
+	def __call__(self, *args):
+		self.vprint(*args)
 
+		with open(self.file, "a+") as log:
+			for arg in args:
+				log.write(arg)
+			log.write("\n")
