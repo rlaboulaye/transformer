@@ -15,7 +15,7 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	if 'target' in task:
 		train_target_matrix, target_encoders = get_target_matrix(train_dataframe, task['target']['column_indices'], task['task_type'])
 		train_matrices += (train_target_matrix,)
-	if 'test_file_path' in task:
+	if 'test_file' in task:
 		test_file = task['test_file']
 		test_dataframe = load_dataframe(test_file['file_path'], test_file['file_type'], test_file['file_header'])
 		test_document_matrix, test_mask_matrix = get_document_matrix(test_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
