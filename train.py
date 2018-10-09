@@ -35,8 +35,8 @@ def run_epoch(dataloader, model, lm_criterion, task_critetion, lm_coef, task_coe
 			optimizer.step()
 		if task_coef != 0:
 			accuracy = compute_accuracy(y, task_logits)
-		losses.extend([double_head_loss.item()] * x.shape[0])
-		accuracies.extend([accuracy.item()] * x.shape[0])
+		losses.extend([double_head_loss.cpu().item()] * x.shape[0])
+		accuracies.extend([accuracy.cpu().item()] * x.shape[0])
 	return np.mean(losses), np.mean(accuracies)
 	# Cloze expected output: 27.89827631632487, 21.38771795272827, 18.45592082977295
 	# Airline expected output: 19.27845308886453
@@ -167,7 +167,7 @@ if __name__ == '__main__':
 	#
 
 	#
-	criterion = nn.CrossEntropyLoss(reduce=False)
+	criterion = nn.CrossEntropyLoss(reduction='none')
 	n_updates_total = (train_dataloader.dataset.instances.shape[0] // args.batch_size) * args.n_iter
 	model_opt = OpenAIAdam(dh_model.parameters(),
 							lr=args.lr,
