@@ -37,8 +37,7 @@ def run_epoch(dataloader, model, lm_criterion, task_critetion, lm_coef, task_coe
 			accuracy = compute_accuracy(y, task_logits)
 		losses.extend([double_head_loss.item()] * x.shape[0])
 		accuracies.extend([accuracy.item()] * x.shape[0])
-	print(np.mean(losses))
-	print(np.mean(accuracies))
+	return np.mean(losses), np.mean(accuracies)
 	# Cloze expected output: 27.89827631632487, 21.38771795272827, 18.45592082977295
 	# Airline expected output: 19.27845308886453
 
@@ -187,7 +186,14 @@ if __name__ == '__main__':
 	# train model
 	for epoch in range(args.n_iter):
 		print('Running epoch {}'.format(epoch))
-		run_epoch(train_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., optimizer=model_opt, verbose=verbose)
+		print('Training')
+		train_loss, train_accuracy = run_epoch(train_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., optimizer=model_opt, verbose=verbose)
+		print('Train Loss: {}'.format(train_loss))
+		print('Train Accuracy: {}'.format(train_accuracy))
+		print('Validation')
+		validation_loss, validation_accuracy = run_epoch(validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
+		print('Validation Loss: {}'.format(validation_loss))
+		print('Validation Accuracy: {}'.format(validation_accuracy))
 
 
 	#TODO: calculate sequence_dim from both train and test
