@@ -13,24 +13,30 @@ from opt import OpenAIAdam
 from loss import compute_double_head_loss, compute_accuracy
 
 
-def run_epoch(dataloader, model, lm_criterion, task_critetion, lm_coef, task_coef, optimizer=None, verbose=False):
+def score(dataloader, model, lm_criterion, task_critetion, verbose):
 	losses = []
 	accuracies = []
-	if optimizer is None:
+	with torch.no_grad():
 		model.eval()
-	else:
-		model.train()
-	for x, m, y in get_iterator(dataloader, verbose):
-		lm_logits, task_logits = model(x)
-		double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_critetion, lm_coef, task_coef)
-		if optimizer is not None:
-			double_head_loss.backward()
-			optimizer.step()
-			optimizer.zero_grad()
-		accuracy = compute_accuracy(y, task_logits)
+		for x, m, y in get_iterator(dataloader, verbose):
+			lm_logits, task_logits = model(x)
+			double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_critetion, lm_coef, task_coef)
+			accuracy = compute_accuracy(y, task_logits)
 		losses.extend([double_head_loss.cpu().item()] * x.shape[0])
 		accuracies.extend([accuracy.cpu().item()] * x.shape[0])
 	return np.mean(losses), np.mean(accuracies)
+
+def run_epoch(dataloader, model, lm_criterion, task_critetion, lm_coef, task_coef, optimizer, verbose=False):
+	model.train()
+	for x, m, y in get_iterator(dataloader, verbose):
+		lm_logits, task_logits = model(x)
+		double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_critetion, lm_coef, task_coef)
+		double_head_loss.backward()
+		optimizer.step()
+		optimizer.zero_grad()
+		# every so often, run score function
+	# return scores
+	return
 	# Cloze expected output: 27.89827631632487, 21.38771795272827, 18.45592082977295
 	# Airline expected output: 19.27845308886453
 
@@ -184,16 +190,14 @@ if __name__ == '__main__':
 		train_loss, train_accuracy = run_epoch(train_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., optimizer=model_opt, verbose=verbose)
 		verbose_print(verbose, 'Train Loss: {}'.format(train_loss))
 		verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracy))
-		verbose_print(verbose, 'Validation')
-		with torch.no_grad():
-			validation_loss, validation_accuracy = run_epoch(validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
-		verbose_print(verbose, 'Validation Loss: {}'.format(validation_loss))
-		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracy))
-	verbose_print(verbose, 'Testing')
-	with torch.no_grad():
-		test_loss, test_accuracy = run_epoch(test_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
-	verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
-	verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
+		# verbose_print(verbose, 'Validation')
+		# validation_loss, validation_accuracy = run_epoch(validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
+		# verbose_print(verbose, 'Validation Loss: {}'.format(validation_loss))
+		# verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracy))
+	# verbose_print(verbose, 'Testing')
+	# test_loss, test_accuracy = run_epoch(test_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
+	# verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
+	# verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
 
 	#TODO: calculate sequence_dim from both train and test
 	#TODO: add number of classes to schema for document classification
