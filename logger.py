@@ -46,7 +46,7 @@ class Logger(object):
 		plt.title('Accuracy')
 		plt.plot(self.results['train_accuracies'], label='train')
 		plt.plot(self.results['validation_accuracies'], label='validate')
-		plt.plot([default_accuracy] * len(self.results['train_accuracies']), label='default')
+		plt.plot([self.results['default_accuracy']] * len(self.results['train_accuracies']), label='default')
 		plt.legend()
 		plt.savefig('{}/accuracy.png'.format(self.results_directory))
 		plt.close()
