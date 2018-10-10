@@ -80,10 +80,10 @@ def train(train_dataloader, validation_dataloader, model, lm_criterion, task_cri
 		logger.log()
 		logger.plot()
 
-		verbose_print(verbose, 'Train Loss: {}'.format(train_loss))
-		verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracy))
-		verbose_print(verbose, 'Validation Loss: {}'.format(validation_loss))
-		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracy))
+		verbose_print(verbose, 'Train Loss: {}'.format(train_losses))
+		verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracies))
+		verbose_print(verbose, 'Validation Loss: {}'.format(validation_losses))
+		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracies))
 
 		new_loss = np.mean(validation_loss)
 		if new_loss < min_loss:
@@ -247,7 +247,7 @@ if __name__ == '__main__':
 		model_opt = Adam(dh_model.parameters(),
 						lr=args.lr,
 						betas=(args.b1, args.b2),
-						eps=self.eps)
+						eps=args.eps)
 	elif args.opt == 'openai_adam':
 		n_updates_total = (train_dataloader.dataset.instances.shape[0] // args.batch_size) * args.n_iter
 		model_opt = OpenAIAdam(dh_model.parameters(),
@@ -268,9 +268,9 @@ if __name__ == '__main__':
 
 	_, task_file_name = os.path.split(args.task_path)
 	task_name = '{}__{}tr__{}val__{}te'.format(task_file_name.strip('.json'),
-												len(train_dataloader.dataset.instances.shape[0]),
-												len(validation_dataloader.dataset.instances.shape[0]),
-												len(test_dataloader.dataset.instances.shape[0]))
+												train_dataloader.dataset.instances.shape[0],
+												validation_dataloader.dataset.instances.shape[0],
+												test_dataloader.dataset.instances.shape[0])
 	targets = np.concatenate([train_dataloader.dataset.targets, validation_dataloader.dataset.targets, test_dataloader.dataset.targets])
 	default_accuracy = float(mode(targets).count[0]) / float(len(targets))
 	scores_per_epoch = args.scores_per_epoch

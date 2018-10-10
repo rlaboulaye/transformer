@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 
 class Logger(object):
 
-	def __init__(self, task_name, num_scores_per_epoch=1, default_accuracy=.5):
+	def __init__(self, task_name, scores_per_epoch=1, default_accuracy=.5):
 		self.task_name = task_name
 		self.results_directory = 'results/{}'.format(self.task_name)
 		self.results = {
@@ -16,7 +16,7 @@ class Logger(object):
 			'validation_accuracies': [],
 			'test_loss': 0,
 			'test_accuracy': 0,
-			'num_scores_per_epoch': num_scores_per_epoch,
+			'scores_per_epoch': scores_per_epoch,
 			'default_accuracy': default_accuracy
 		}
 		if not os.path.exists(self.results_directory):
