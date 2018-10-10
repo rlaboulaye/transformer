@@ -85,7 +85,7 @@ def train(train_dataloader, validation_dataloader, model, lm_criterion, task_cri
 		verbose_print(verbose, 'Validation Loss: {}'.format(validation_losses))
 		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracies))
 
-		new_loss = np.mean(validation_loss)
+		new_loss = np.mean(validation_losses)
 		if new_loss < min_loss:
 			min_loss = np.mean(validation_loss)
 			torch.save(model.transformer.state_dict(), transformer_path)
