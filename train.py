@@ -60,7 +60,7 @@ def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task
 def train(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, model_opt, logger, args):
 	
 	min_loss = float('inf')
-	weight_directory = os.path.join('model_params', logger.task_name)
+	weight_directory = os.path.join('weights', logger.task_name)
 	if not os.path.exists(weight_directory):
 		os.makedirs(weight_directory)
 	transformer_path = os.path.join(weight_directory, 'transformer.pth')
