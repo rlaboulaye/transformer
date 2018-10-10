@@ -1,12 +1,15 @@
+import os
 import json
 import argparse
 
 import numpy as np
+from scipy.stats import mode
 import torch
 from torch import nn
-from matplotlib import pyplot as plt
+from torch.optim import Adam
 
-from utils import set_seed, get_device, validate_task, get_iterator, verbose_print, Logger
+from utils import set_seed, get_device, validate_task, get_iterator, verbose_print
+from logger import Logger
 from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
@@ -27,7 +30,7 @@ def score(dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, v
 			accuracies.extend([accuracy.cpu().item()] * x.shape[0])
 	return np.mean(losses), np.mean(accuracies)
 
-def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, optimizer, verbose):
+def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, optimizer, scores_per_epoch, verbose):
 	train_losses = []
 	train_accuracies = []
 	validation_losses = []
@@ -43,8 +46,8 @@ def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task
 		optimizer.zero_grad()
 		n_updates += 1
 
-		# score five times per epoch
-		if n_updates % (len(train_dataloader) // 3) == 0:
+		# score three times per epoch
+		if n_updates % (len(train_dataloader) // scores_per_epoch) == 0:
 			train_loss, train_accuracy = score(train_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose)
 			validation_loss, validation_accuracy = score(validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose)
 			train_losses.append(train_loss)
@@ -53,8 +56,56 @@ def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task
 			validation_accuracies.append(validation_accuracy)
 
 	return train_losses, train_accuracies, validation_losses, validation_accuracies
-	# Cloze expected output: 27.89827631632487, 21.38771795272827, 18.45592082977295
-	# Airline expected output: 19.27845308886453
+
+def train(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, model_opt, logger, args):
+	
+	min_loss = float('inf')
+	weight_directory = os.path.join('model_params', logger.task_name)
+	if not os.path.exists(weight_directory):
+		os.makedirs(weight_directory)
+	transformer_path = os.path.join(weight_directory, 'transformer.pth')
+	lm_head_path = os.path.join(weight_directory, 'lm_head.pth')
+	task_head_path = os.path.join(weight_directory, 'task_head.pth')
+
+	for epoch in range(args.n_iter):
+
+		verbose_print('Running epoch {}'.format(epoch))
+		
+		train_losses, train_accuracies, validation_losses, validation_accuracies = run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., model_opt, logger.results['scores_per_epoch'], verbose)
+		logger.results['train_losses'].extend(train_losses)
+		logger.results['train_accuracies'].extend(train_accuracies)
+		logger.results['validation_losses'].extend(validation_losses)
+		logger.results['validation_accuracies'].extend(validation_accuracies)
+
+		logger.log()
+		logger.plot()
+
+		verbose_print(verbose, 'Train Loss: {}'.format(train_loss))
+		verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracy))
+		verbose_print(verbose, 'Validation Loss: {}'.format(validation_loss))
+		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracy))
+
+		new_loss = np.mean(validation_loss)
+		if new_loss < min_loss:
+			min_loss = np.mean(validation_loss)
+			torch.save(model.transformer.state_dict(), transformer_path)
+			torch.save(model.lm_head.state_dict(), lm_head_path)
+			torch.save(model.task_head.state_dict(), task_head_path)
+
+	model.load_state_dict(transformer_path)
+	model.load_state_dict(lm_head_path)
+	model.load_state_dict(task_head_path)
+
+def test(test_dataloader, model, lm_criterion, task_criterion, logger, args):
+
+	verbose_print(verbose, 'Testing')
+
+	test_loss, test_accuracy = score(test_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., verbose)
+	logger.results['test_loss'] = test_loss
+	logger.results['test_accuracy'] = test_accuracy
+
+	verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
+	verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
 
 def load_openai_pretrained_model(model, n_ctx=-1, n_special=-1, n_transfer=12, n_embd=768, path='./model_params/',
 		path_names='./'):
@@ -123,7 +174,6 @@ if __name__ == '__main__':
 	parser.add_argument('--verbose', action='store_true')
 	parser.add_argument('--seed', type=int, default=42)
 	parser.add_argument('--batch_size', type=int, default=8)
-	# TODO Rename arguments
 	parser.add_argument('--n_iter', type=int, default=3)
 	parser.add_argument('--n_embd', type=int, default=768)
 	parser.add_argument('--n_head', type=int, default=12)
@@ -133,18 +183,18 @@ if __name__ == '__main__':
 	parser.add_argument('--resid_pdrop', type=float, default=.1)
 	parser.add_argument('--clf_pdrop', type=float, default=.1)
 	parser.add_argument('--afn', type=str, choices=['relu', 'swish', 'gelu'], default='gelu')
-	#
+	parser.add_argument('--opt', type=str, choices=['adam', 'openai_adam'], default='adam')
 	parser.add_argument('--lm_coef', type=float, default=0.5)
 	parser.add_argument('--lr', type=float, default=6.25e-5)
 	parser.add_argument('--lr_schedule', type=str, default='warmup_linear')
 	parser.add_argument('--lr_warmup', type=float, default=0.002)
 	parser.add_argument('--b1', type=float, default=0.9)
 	parser.add_argument('--b2', type=float, default=0.999)
-	parser.add_argument('--e', type=float, default=1e-8)
+	parser.add_argument('--eps', type=float, default=1e-8)
 	parser.add_argument('--l2', type=float, default=0.01)
 	parser.add_argument('--vector_l2', action='store_true')
 	parser.add_argument('--max_grad_norm', type=int, default=1)
-	#
+	parser.add_argument('--scores_per_epoch', type=int, default=3)
 	parser.add_argument('--test_split', type=float, default=.2)
 	parser.add_argument('--validation_split', type=float, default=.2)
 	parser.add_argument('--encoder_path', type=str, default='model_params/encoder_bpe_40000.json')
@@ -153,10 +203,8 @@ if __name__ == '__main__':
 
 	args = parser.parse_args()
 	verbose = args.verbose
-	log = Logger("results/log.txt", verbose)
 	if verbose:
 		verbose_print(verbose, args)
-		log(args)
 
 	task_path = args.task_path
 	with open(task_path, 'r') as task_file:
@@ -177,78 +225,59 @@ if __name__ == '__main__':
 	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
 
 	#
-	# load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
+	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
 	# torch.save(dh_model.state_dict(), 'weights.pth')
 	# dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
 	# verbose_print('Loading Weights')
-	dh_model.load_state_dict(torch.load('weights.pth'))
+	# dh_model.load_state_dict(torch.load('weights.pth'))
 	#
 
 	#
-	criterion = nn.CrossEntropyLoss(reduction='none')
-	n_updates_total = (train_dataloader.dataset.instances.shape[0] // args.batch_size) * args.n_iter
-	model_opt = OpenAIAdam(dh_model.parameters(),
-						   lr=args.lr,
-						   schedule=args.lr_schedule,
-						   warmup=args.lr_warmup,
-						   t_total=n_updates_total,
-						   b1=args.b1,
-						   b2=args.b2,
-						   e=args.e,
-						   l2=args.l2,
-						   vector_l2=args.vector_l2,
-						   max_grad_norm=args.max_grad_norm)
+
+	lm_criterion = nn.CrossEntropyLoss(reduction='none')
+
+	if task_type == 'MultipleChoice' or task_type == 'DocumentClassification':
+		task_criterion = nn.CrossEntropyLoss(reduction='none')
+	elif task_type == 'DocumentSimilarity':
+		raise NotImplementedError()
+	else:
+		raise NotImplementedError()
+
+	if args.opt == 'adam':
+		model_opt = Adam(dh_model.parameters(),
+						lr=args.lr,
+						betas=(args.b1, args.b2),
+						eps=self.eps)
+	elif args.opt == 'openai_adam':
+		n_updates_total = (train_dataloader.dataset.instances.shape[0] // args.batch_size) * args.n_iter
+		model_opt = OpenAIAdam(dh_model.parameters(),
+							   lr=args.lr,
+							   schedule=args.lr_schedule,
+							   warmup=args.lr_warmup,
+							   t_total=n_updates_total,
+							   b1=args.b1,
+							   b2=args.b2,
+							   e=args.eps,
+							   l2=args.l2,
+							   vector_l2=args.vector_l2,
+							   max_grad_norm=args.max_grad_norm)
+	else:
+		raise NotImplementedError()
 
 	dh_model.to(device)
 
-	train_losses = []
-	train_accuracies = []
-	validation_losses = []
-	validation_accuracies = []
-	min_loss = float('inf')
+	_, task_file_name = os.path.split(args.task_path)
+	task_name = '{}__{}tr__{}val__{}te'.format(task_file_name.strip('.json'),
+												len(train_dataloader.dataset.instances.shape[0]),
+												len(validation_dataloader.dataset.instances.shape[0]),
+												len(test_dataloader.dataset.instances.shape[0]))
+	targets = np.concatenate([train_dataloader.dataset.targets, validation_dataloader.dataset.targets, test_dataloader.dataset.targets])
+	default_accuracy = float(mode(targets).count[0]) / float(len(targets))
+	scores_per_epoch = args.scores_per_epoch
+	logger = Logger(task_name, scores_per_epoch, default_accuracy)
 
-	# train model
-	# for epoch in range(args.n_iter):
-	for epoch in range(100):
-		verbose_print('Running epoch {}'.format(epoch))
-		train_loss, train_accuracy, validation_loss, validation_accuracy = run_epoch(train_dataloader, validation_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., optimizer=model_opt, verbose=verbose)
-		verbose_print(verbose, '\nTraining')
-		verbose_print(verbose, 'Train Loss: {}'.format(train_loss))
-		verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracy))
-
-		verbose_print(verbose, 'Validation')
-		verbose_print(verbose, 'Validation Loss: {}'.format(validation_loss))
-		verbose_print(verbose, 'Validation Accuracy: {}\n'.format(validation_accuracy))
-
-		train_losses.extend(train_loss)
-		train_accuracies.extend(train_accuracy)
-		validation_losses.extend(validation_loss)
-		validation_accuracies.extend(validation_accuracy)
-
-		plt.figure()
-		plt.plot(train_losses, label="train")
-		plt.plot(validation_losses, label="validate")
-		plt.title("Loss")
-		plt.legend()
-		plt.savefig("run_results/loss_plot")
-
-		plt.figure()
-		plt.plot(train_accuracies, label="train")
-		plt.plot(validation_accuracies, label="validate")
-		plt.title("Accuracy")
-		plt.legend()
-		plt.savefig("run_results/accuracy_plot")
-
-		new_loss = np.mean(validation_loss)
-		if new_loss < min_loss:
-			min_loss = np.mean(validation_loss)
-			# weight path: "model_params/weights/[task_name]_[number_of_training_samples].pth"
-			torch.save(dh_model.state_dict(), 'model_params/weights/best_weights_epoch_' + str(epoch) + '.pth')
-
-	verbose_print(verbose, 'Testing')
-	test_loss, test_accuracy = score(test_dataloader, dh_model, criterion, criterion, args.lm_coef, 1., verbose=verbose)
-	verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
-	verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
+	train(train_dataloader, validation_dataloader, dh_model, lm_criterion, task_criterion, model_opt, logger, args)
+	test(test_dataloader, dh_model, lm_criterion, task_criterion, logger, args)
 
 	#TODO: calculate sequence_dim from both train and test
 	#TODO: add number of classes to schema for document classification
