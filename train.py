@@ -46,8 +46,7 @@ def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task
 		optimizer.zero_grad()
 		n_updates += 1
 
-		# score three times per epoch
-		if n_updates % (len(train_dataloader) // scores_per_epoch) == 0:
+		if n_updates % math.ceil(float(len(train_dataloader)) / float(scores_per_epoch)) == 0 or n_updates == len(train_dataloader):
 			train_loss, train_accuracy = score(train_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose)
 			validation_loss, validation_accuracy = score(validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose)
 			train_losses.append(train_loss)
