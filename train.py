@@ -204,7 +204,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 	verbose = args.verbose
 	if verbose:
-		verbose_print(verbose, args)
+		verbose_print(verbose, vars(args))
 
 	task_path = args.task_path
 	with open(task_path, 'r') as task_file:
@@ -275,7 +275,7 @@ if __name__ == '__main__':
 	targets = np.concatenate([train_dataloader.dataset.targets, validation_dataloader.dataset.targets, test_dataloader.dataset.targets])
 	default_accuracy = float(mode(targets).count[0]) / float(len(targets))
 	scores_per_epoch = args.scores_per_epoch
-	logger = Logger(args, task_name, scores_per_epoch, default_accuracy)
+	logger = Logger(vars(args), task_name, scores_per_epoch, default_accuracy)
 
 	train(train_dataloader, validation_dataloader, dh_model, lm_criterion, task_criterion, model_opt, logger, args)
 	test(test_dataloader, dh_model, lm_criterion, task_criterion, logger, args)
