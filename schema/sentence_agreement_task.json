@@ -17,6 +17,7 @@
 	"target": {
 		"column_indices": [
 			4
-		]
+		],
+		"num_classes": 3
 	}
 }

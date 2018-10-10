@@ -223,7 +223,7 @@ if __name__ == '__main__':
 	sequence_dim = train_dataloader.dataset.sequence_dim
 	vocab_size = len(text_encoder.encoder) + sequence_dim
 
-	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
+	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task, vocab_size, sequence_dim)
 
 	#
 	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)

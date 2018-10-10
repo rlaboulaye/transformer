@@ -80,6 +80,9 @@
 			"properties": {
 				"column_indices": {
 					"$ref": "#/definitions/indices"
+				},
+				"num_classes": {
+					"type": "integer"
 				}
 			},
 			"required": [
