@@ -87,7 +87,7 @@ def train(train_dataloader, validation_dataloader, model, lm_criterion, task_cri
 
 		new_loss = np.mean(validation_losses)
 		if new_loss < min_loss:
-			min_loss = np.mean(validation_loss)
+			min_loss = np.mean(validation_losses)
 			torch.save(model.transformer.state_dict(), transformer_path)
 			torch.save(model.lm_head.state_dict(), lm_head_path)
 			torch.save(model.task_head.state_dict(), task_head_path)

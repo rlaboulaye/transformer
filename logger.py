@@ -36,6 +36,8 @@ class Logger(object):
 	def plot(self):
 		plt.figure()
 		plt.title('Loss')
+		plt.xlabel('1/{} Epoch'.format(self.results['scores_per_epoch']))
+		plt.ylabel('Loss')
 		plt.plot(self.results['train_losses'], label='train')
 		plt.plot(self.results['validation_losses'], label='validate')
 		plt.legend()
@@ -44,6 +46,8 @@ class Logger(object):
 
 		plt.figure()
 		plt.title('Accuracy')
+		plt.xlabel('1/{} Epoch'.format(self.results['scores_per_epoch']))
+		plt.ylabel('Accuracy')
 		plt.plot(self.results['train_accuracies'], label='train')
 		plt.plot(self.results['validation_accuracies'], label='validate')
 		plt.plot([self.results['default_accuracy']] * len(self.results['train_accuracies']), label='default')
