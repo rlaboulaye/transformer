@@ -267,10 +267,11 @@ if __name__ == '__main__':
 	dh_model.to(device)
 
 	_, task_file_name = os.path.split(args.task_path)
-	task_name = '{}__{}tr__{}val__{}te'.format(task_file_name.strip('.json'),
-												train_dataloader.dataset.instances.shape[0],
+	task_name = os.path.join(task_file_name.strip('.json'),
+							'{}tr__{}val__{}te'.format(train_dataloader.dataset.instances.shape[0],
 												validation_dataloader.dataset.instances.shape[0],
 												test_dataloader.dataset.instances.shape[0])
+		)
 	targets = np.concatenate([train_dataloader.dataset.targets, validation_dataloader.dataset.targets, test_dataloader.dataset.targets])
 	default_accuracy = float(mode(targets).count[0]) / float(len(targets))
 	scores_per_epoch = args.scores_per_epoch

@@ -8,7 +8,7 @@ class Logger(object):
 
 	def __init__(self, task_name, scores_per_epoch=1, default_accuracy=.5):
 		self.task_name = task_name
-		self.results_directory = 'results/{}'.format(self.task_name)
+		self.results_directory = os.path.join('results', self.task_name)
 		self.results = {
 			'train_losses': [],
 			'train_accuracies': [],
@@ -29,7 +29,7 @@ class Logger(object):
 			self.results = json.load(file_obj)
 
 	def log(self):
-		with open('{}/results.json', 'w').format(self.results_directory) as file_obj:
+		with open('{}/results.json'.format(self.results_directory), 'w') as file_obj:
 			json.dump(file_obj)
 
 	def plot(self):
