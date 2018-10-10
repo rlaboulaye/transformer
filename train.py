@@ -267,8 +267,8 @@ if __name__ == '__main__':
 
 	dh_model.to(device)
 
-	_, task_file_name = os.path.split(args.task_path)
-	task_name = os.path.join(task_file_name.strip('.json'),
+	task_file_name = os.path.basename(args.task_path)
+	task_name = os.path.join(os.path.splitext(task_file_name)[0],
 							'{}tr__{}val__{}te'.format(train_dataloader.dataset.instances.shape[0],
 												validation_dataloader.dataset.instances.shape[0],
 												test_dataloader.dataset.instances.shape[0])

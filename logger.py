@@ -25,7 +25,7 @@ class Logger(object):
 
 	def load(self, file_path):
 		self.results_directory, task_file_name = os.path.split(file_path)
-		self.task_name = task_file_name.strip('.json')
+		self.task_name = os.path.splitext(task_file_name)[0]
 		with open(file_path, 'r') as file_obj:
 			self.results = json.load(file_obj)
 
