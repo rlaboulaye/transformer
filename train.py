@@ -1,4 +1,5 @@
 import os
+import math
 import json
 import argparse
 
@@ -68,7 +69,7 @@ def train(train_dataloader, validation_dataloader, model, lm_criterion, task_cri
 
 	for epoch in range(args.n_iter):
 
-		verbose_print('Running epoch {}'.format(epoch))
+		verbose_print(verbose, 'Running epoch {}'.format(epoch))
 		
 		train_losses, train_accuracies, validation_losses, validation_accuracies = run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., model_opt, logger.results['scores_per_epoch'], verbose)
 		logger.results['train_losses'].extend(train_losses)
@@ -274,7 +275,7 @@ if __name__ == '__main__':
 	targets = np.concatenate([train_dataloader.dataset.targets, validation_dataloader.dataset.targets, test_dataloader.dataset.targets])
 	default_accuracy = float(mode(targets).count[0]) / float(len(targets))
 	scores_per_epoch = args.scores_per_epoch
-	logger = Logger(task_name, scores_per_epoch, default_accuracy)
+	logger = Logger(args, task_name, scores_per_epoch, default_accuracy)
 
 	train(train_dataloader, validation_dataloader, dh_model, lm_criterion, task_criterion, model_opt, logger, args)
 	test(test_dataloader, dh_model, lm_criterion, task_criterion, logger, args)

@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 
 class Logger(object):
 
-	def __init__(self, task_name, scores_per_epoch=1, default_accuracy=.5):
+	def __init__(self, args, task_name, scores_per_epoch=1, default_accuracy=.5):
 		self.task_name = task_name
 		self.results_directory = os.path.join('results', self.task_name)
 		self.results = {
@@ -17,7 +17,8 @@ class Logger(object):
 			'test_loss': 0,
 			'test_accuracy': 0,
 			'scores_per_epoch': scores_per_epoch,
-			'default_accuracy': default_accuracy
+			'default_accuracy': default_accuracy,
+			'args': args
 		}
 		if not os.path.exists(self.results_directory):
 			os.makedirs(self.results_directory)
@@ -30,7 +31,7 @@ class Logger(object):
 
 	def log(self):
 		with open('{}/results.json'.format(self.results_directory), 'w') as file_obj:
-			json.dump(file_obj)
+			json.dump(self.results, file_obj)
 
 	def plot(self):
 		plt.figure()
