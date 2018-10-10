@@ -92,9 +92,10 @@ def train(train_dataloader, validation_dataloader, model, lm_criterion, task_cri
 			torch.save(model.lm_head.state_dict(), lm_head_path)
 			torch.save(model.task_head.state_dict(), task_head_path)
 
-	model.load_state_dict(transformer_path)
-	model.load_state_dict(lm_head_path)
-	model.load_state_dict(task_head_path)
+	if min_loss != new_loss:
+		model.load_state_dict(torch.load(transformer_path))
+		model.load_state_dict(torch.load(lm_head_path))
+		model.load_state_dict(torch.load(task_head_path))
 
 def test(test_dataloader, model, lm_criterion, task_criterion, logger, args):
 
