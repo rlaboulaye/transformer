@@ -26,4 +26,4 @@ def compute_double_head_loss(X, Y, M, lm_logits, task_logits, lm_criterion, task
 
 def compute_accuracy(Y, task_logits):
     predictions = task_logits.view(Y.shape[0], -1).argmax(-1)
-    return (predictions == Y).float().mean()
+    return (predictions == Y).double().mean()

@@ -15,7 +15,7 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	if 'target' in task:
 		train_target_matrix, target_encoders = get_target_matrix(train_dataframe, task['target']['column_indices'], task['task_type'])
 		train_matrices += (train_target_matrix,)
-	if 'test_file_path' in task:
+	if 'test_file' in task:
 		test_file = task['test_file']
 		test_dataframe = load_dataframe(test_file['file_path'], test_file['file_type'], test_file['file_header'])
 		test_document_matrix, test_mask_matrix = get_document_matrix(test_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
@@ -71,7 +71,9 @@ def get_target_matrix(dataframe, target_indices, task_type, encoders=None):
 
 def get_document_matrix(dataframe, document_list, task_type, text_encoder, verbose):
 	documents_dataframe = create_documents(dataframe, document_list, task_type, text_encoder, verbose)
+	# TODO replace max_sequence length
 	max_sequence_length = max([documents_dataframe[column].apply(lambda x: len(x)).max() for column in documents_dataframe.columns])
+	# max_sequence_length = 77
 	document_matrices = [np.stack(documents_dataframe[column].apply(lambda x: np.pad(x, (0, max_sequence_length - len(x)), mode='constant')).values) for column in documents_dataframe.columns]
 	mask_matrices = [np.stack(documents_dataframe[column].apply(lambda x: np.pad(np.ones(len(x)), (0, max_sequence_length - len(x)), mode='constant')).values) for column in documents_dataframe.columns]
 	document_matrix = np.concatenate([document_matrix.reshape(-1, 1, max_sequence_length) for document_matrix in document_matrices], axis=1)

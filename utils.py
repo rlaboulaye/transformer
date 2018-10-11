@@ -38,9 +38,3 @@ def validate_task(task, task_schema_path='schema/task_schema.json'):
 		validate(task, task_schema)
 	except ValidationError as err:
 		sys.exit('EXCEPTION: THE TASK FAILED TO VALIDATE AGAINST THE TASK SCHEMA.\n\n{}'.format(err))
-
-def log():
-	pass
-
-
-
