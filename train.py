@@ -227,10 +227,10 @@ if __name__ == '__main__':
 
 	#
 	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
-	# torch.save(dh_model.state_dict(), 'weights.pth')
-	# dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
-	# verbose_print('Loading Weights')
-	# dh_model.load_state_dict(torch.load('weights.pth'))
+	torch.save(dh_model.state_dict(), 'weights.pth')
+	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
+	verbose_print('Loading Weights')
+	dh_model.load_state_dict(torch.load('weights.pth'))
 	#
 
 	#
