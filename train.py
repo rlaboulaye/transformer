@@ -104,6 +104,7 @@ def test(test_dataloader, model, lm_criterion, task_criterion, logger, args):
 	test_loss, test_accuracy = score(test_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., verbose)
 	logger.results['test_loss'] = test_loss
 	logger.results['test_accuracy'] = test_accuracy
+	logger.log()
 
 	verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
 	verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
