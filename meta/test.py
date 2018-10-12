@@ -42,8 +42,8 @@ def train_network(train_set, test_set, optimizer, device, epochs):
 			y_hat = mlp(x).view(-1)
 			loss = torch.sqrt(loss_function(y_hat, y))
 			loss.backward()
-			optimizer(loss)
 			optimizer.zero_grad()
+			optimizer(loss)
 			losses.append(loss.cpu().item())
 		print('Epoch {}: {}'.format(epoch, np.mean(losses)))
 	with torch.no_grad():
@@ -90,7 +90,7 @@ epochs = 5
 for meta_epoch in range(meta_epochs):
 	print('Meta Epoch {}'.format(meta_epoch))
 	loss = train_network(train_set, test_set, optimizer, device, epochs)
+	meta_optimizer.zero_grad()
 	loss.backward()
 	meta_optimizer.step()
-	meta_optimizer.zero_grad()
 	print(loss.cpu().item())
