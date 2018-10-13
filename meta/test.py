@@ -85,12 +85,36 @@ optimizer = LSTMOptimizer(mlp.parameters())
 optimizer.to(device)
 meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 
-meta_epochs = 1
-epochs = 5
-for meta_epoch in range(meta_epochs):
-	print('Meta Epoch {}'.format(meta_epoch))
-	loss = train_network(train_set, test_set, optimizer, device, epochs)
-	meta_optimizer.zero_grad()
-	loss.backward()
-	meta_optimizer.step()
-	print(loss.cpu().item())
+#
+
+batch = train_set[0]
+x = batch[:,:-1]
+y = batch[:,-1]
+x = torch.tensor(x, dtype=torch.float32, device=device)
+y = torch.tensor(y, dtype=torch.float32, device=device)
+y_hat = mlp(x).view(-1)
+loss = torch.sqrt(loss_function(y_hat, y))
+loss.backward()
+optimizer.zero_grad()
+optimizer(loss)
+batch = train_set[1]
+x = batch[:,:-1]
+y = batch[:,-1]
+x = torch.tensor(x, dtype=torch.float32, device=device)
+y = torch.tensor(y, dtype=torch.float32, device=device)
+y_hat = mlp(x).view(-1)
+loss = torch.sqrt(loss_function(y_hat, y))
+loss.backward()
+meta_optimizer.step()
+
+#
+
+# meta_epochs = 1
+# epochs = 5
+# for meta_epoch in range(meta_epochs):
+# 	print('Meta Epoch {}'.format(meta_epoch))
+# 	loss = train_network(train_set, test_set, optimizer, device, epochs)
+# 	meta_optimizer.zero_grad()
+# 	loss.backward()
+# 	meta_optimizer.step()
+# 	print(loss.cpu().item())
