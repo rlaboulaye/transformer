@@ -15,15 +15,22 @@ class LSTMOptimizer(nn.Module):
 		self.neg_exp_p = np.exp(-self.p)
 
 		input_dim = 6
+		self.activation = nn.Sigmoid()
 		self.W_theta = nn.Linear(input_dim, 1, bias=True)
 		self.W_grad = nn.Linear(input_dim, 1, bias=True)
-		self.activation = nn.Sigmoid()		
+		self.initialize_gates()
 
 		self.theta_0 = nn.ParameterList()
 		for group in params:
-			self.theta_0.append(nn.Parameter(torch.zeros(group.shape)))
+			self.theta_0.append(nn.Parameter(torch.zeros(group.shape).normal_(0, np.sqrt(2. / sum(group.shape)))))
 
 		self.set_params(params)
+
+	def initialize_gates(self, window=.01):
+		self.W_theta.weight.data.uniform_(-window, window)
+		self.W_theta.bias.data.normal_(7., 1.)
+		self.W_grad.weight.data.uniform_(-window, window)
+		self.W_grad.bias.data.normal_(-7., 1.)
 
 	def to(self, device):
 		self.device = device
@@ -100,6 +107,6 @@ class LSTMOptimizer(nn.Module):
 
 	def forward(self, loss):
 		for group_index, group in enumerate(self.param_groups):
-			grad = group.grad.data.view(-1, 1)
+			grad = group.grad.detach().view(-1, 1)
 			# need to figure out if i need to individualize loss
-			group.data = self.update(group.data.view(-1, 1), grad, grad.new_full(grad.shape, loss.item()), group_index).view(group.shape)
+			group.data = self.update(group.view(-1, 1), grad, grad.new_full(grad.shape, loss.item()), group_index).view(group.shape)

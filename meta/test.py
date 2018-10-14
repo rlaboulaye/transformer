@@ -20,7 +20,7 @@ class MLP(nn.Module):
 		h = self.hidden_activation(self.hidden_layer(x))
 		return self.output_layer(h)
 
-def train_network(train_set, test_set, optimizer, device, epochs):
+def train_network(train_set, test_set, optimizer, meta_optimizer, device, epochs):
 
 	epochs = 5
 
@@ -41,25 +41,35 @@ def train_network(train_set, test_set, optimizer, device, epochs):
 			y = torch.tensor(y, dtype=torch.float32, device=device)
 			y_hat = mlp(x).view(-1)
 			loss = torch.sqrt(loss_function(y_hat, y))
-			loss.backward()
+			loss.backward(retain_graph=True)
+			# print('Grad: {}'.format(mlp.hidden_layer.weight.grad))
+			# print(mlp.hidden_layer.weight)
 			optimizer.zero_grad()
 			optimizer(loss)
-			losses.append(loss.cpu().item())
-		print('Epoch {}: {}'.format(epoch, np.mean(losses)))
-	with torch.no_grad():
-		mlp.eval()
-		losses = []
-		for batch in test_set:
-			x = batch[:,:-1]
-			y = batch[:,-1]
-			x = torch.tensor(x, dtype=torch.float32, device=device)
-			y = torch.tensor(y, dtype=torch.float32, device=device)
-			y_hat = mlp(x).view(-1)
-			loss = torch.sqrt(loss_function(y_hat, y))
 			losses.append(loss)
 		losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
 		loss = losses.mean(-1)
-		return loss
+		print('Epoch {}: {}'.format(epoch, loss.cpu().item()))
+		# print(optimizer.W_theta.weight)
+		meta_optimizer.zero_grad()
+		loss.backward()
+		print('Grad: {}'.format(optimizer.W_theta.weight.grad))
+		meta_optimizer.step()
+		# print(optimizer.W_theta.weight)
+	# with torch.no_grad():
+	# 	mlp.eval()
+	# 	losses = []
+	# 	for batch in test_set:
+	# 		x = batch[:,:-1]
+	# 		y = batch[:,-1]
+	# 		x = torch.tensor(x, dtype=torch.float32, device=device)
+	# 		y = torch.tensor(y, dtype=torch.float32, device=device)
+	# 		y_hat = mlp(x).view(-1)
+	# 		loss = torch.sqrt(loss_function(y_hat, y))
+	# 		losses.append(loss)
+	# 	losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
+	# 	loss = losses.mean(-1)
+	# 	return loss
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -73,48 +83,14 @@ train_set = X_Y[:round(train_test_split * X_Y.shape[0])]
 test_set = X_Y[round(train_test_split * X_Y.shape[0]):]
 
 mlp = MLP(X_Y.shape[-1] - 1, 1, 32)
-
-# param_groups = list(mlp.parameters())
-# for group in param_groups:
-# 	print(group.shape)
-# 	print(group)
-# import sys
-# sys.exit(1)
+mlp.to(device)
 
 optimizer = LSTMOptimizer(mlp.parameters())
 optimizer.to(device)
 meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 
-#
-
-batch = train_set[0]
-x = batch[:,:-1]
-y = batch[:,-1]
-x = torch.tensor(x, dtype=torch.float32, device=device)
-y = torch.tensor(y, dtype=torch.float32, device=device)
-y_hat = mlp(x).view(-1)
-loss = torch.sqrt(loss_function(y_hat, y))
-loss.backward()
-optimizer.zero_grad()
-optimizer(loss)
-batch = train_set[1]
-x = batch[:,:-1]
-y = batch[:,-1]
-x = torch.tensor(x, dtype=torch.float32, device=device)
-y = torch.tensor(y, dtype=torch.float32, device=device)
-y_hat = mlp(x).view(-1)
-loss = torch.sqrt(loss_function(y_hat, y))
-loss.backward()
-meta_optimizer.step()
-
-#
-
-# meta_epochs = 1
-# epochs = 5
-# for meta_epoch in range(meta_epochs):
-# 	print('Meta Epoch {}'.format(meta_epoch))
-# 	loss = train_network(train_set, test_set, optimizer, device, epochs)
-# 	meta_optimizer.zero_grad()
-# 	loss.backward()
-# 	meta_optimizer.step()
-# 	print(loss.cpu().item())
+meta_epochs = 3
+epochs = 5
+for meta_epoch in range(meta_epochs):
+	print('Meta Epoch {}'.format(meta_epoch))
+	loss = train_network(train_set, test_set, optimizer, meta_optimizer, device, epochs)
