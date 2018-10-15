@@ -11,10 +11,10 @@ from .classification_head import ClassificationHead
 
 class DoubleHeadModel(nn.Module):
     """ Transformer with language model and task specific heads """
-    def __init__(self, cfg, clf_token, task, vocab=40990, n_ctx=512):
+    def __init__(self, cfg, clf_token, task, vocab=40990, sequence_dim=512):
         super(DoubleHeadModel, self).__init__()
         task_type = task['task_type']
-        self.transformer = Transformer(cfg, vocab=vocab, n_ctx=n_ctx)
+        self.transformer = Transformer(cfg, vocab=vocab, n_ctx=sequence_dim)
         self.lm_head = LanguageModelHead(self.transformer, cfg)
         if task_type == 'MultipleChoice':
             self.task_head = MultipleChoiceHead(clf_token, cfg)

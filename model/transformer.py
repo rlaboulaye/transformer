@@ -11,17 +11,18 @@ class Transformer(nn.Module):
         super(Transformer, self).__init__()
         self.vocab = vocab
         self.embed = nn.Embedding(vocab, cfg.n_embd)
-        self.drop = nn.Dropout(cfg.embd_pdrop)
+        self.drop = nn.Dropout(cfg.embd_pdrop)  # Is this doing anything here? Should it be moved somewhere else?
         block = Block(n_ctx, cfg, scale=True)
-        self.h = nn.ModuleList([copy.deepcopy(block) for _ in range(cfg.n_layer)])
+        self.h = nn.ModuleList([copy.deepcopy(block) for _ in range(cfg.n_layer)])  # Unable to change this name for now because it is referenced in load_open_AI_Model
 
         nn.init.normal_(self.embed.weight, std=0.02)
 
     def forward(self, x):
+        # Combine batch size and number of documents
         x = x.view(-1, x.size(-2), x.size(-1))
-        e = self.embed(x)
+        embedding = self.embed(x)
         # Add the position information to the input embeddings
-        h = e.sum(dim=2)
+        encoding = embedding.sum(dim=2)
         for block in self.h:
-            h = block(h)
-        return h
+            encoding = block(encoding)
+        return encoding
