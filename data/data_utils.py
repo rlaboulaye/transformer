@@ -8,26 +8,42 @@ from .dataset import Dataset
 
 
 def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size, device, verbose):
+
 	train_file = task['train_file']
-	train_dataframe = load_dataframe(train_file['file_path'], train_file['file_type'], train_file['file_header'])
-	train_document_matrix, train_mask_matrix = get_document_matrix(train_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
-	train_matrices = (train_document_matrix, train_mask_matrix)
-	if 'target' in task:
-		train_target_matrix, target_encoders = get_target_matrix(train_dataframe, task['target']['column_indices'], task['task_type'])
-		train_matrices += (train_target_matrix,)
+	train_val_dataframe = load_dataframe(train_file['file_path'], train_file['file_type'], train_file['file_header'])
 	if 'test_file' in task:
 		test_file = task['test_file']
 		test_dataframe = load_dataframe(test_file['file_path'], test_file['file_type'], test_file['file_header'])
-		test_document_matrix, test_mask_matrix = get_document_matrix(test_dataframe, task['document_list'], task['task_type'], text_encoder, verbose)
-		test_matrices = (test_document_matrix, test_mask_matrix)
-		if 'target' in task:
-			test_target_matrix, target_encoders = get_target_matrix(test_dataframe, task['target']['column_indices'], task['task_type'], target_encoders)
-			test_matrices += (test_target_matrix,)
-		train_matrices, validation_matrices = split_data(train_matrices, validation_split)
 	else:
-		train_val_matrices, test_matrices = split_data(train_matrices, test_split)
-		train_matrices, validation_matrices = split_data(train_val_matrices, validation_split)
+		train_val_dataframe, test_dataframe = split_dataframe(train_val_dataframe, test_split)
+	train_dataframe, validation_dataframe = split_dataframe(train_val_dataframe, validation_split)
+
+	train_documents_dataframe = create_documents(train_dataframe, task["document_list"], task["task_type"], text_encoder, verbose)
+	validation_documents_dataframe = create_documents(validation_dataframe, task["document_list"], task["task_type"], text_encoder, verbose)
+	test_documents_dataframe = create_documents(test_dataframe, task["document_list"], task["task_type"], text_encoder, verbose)
+
+	max_sequence_length = max(
+		max([train_documents_dataframe[column].apply(lambda x: len(x)).max() for column in train_documents_dataframe.columns]),
+		max([validation_documents_dataframe[column].apply(lambda x: len(x)).max() for column in validation_documents_dataframe.columns]),
+		max([test_documents_dataframe[column].apply(lambda x: len(x)).max() for column in test_documents_dataframe.columns]))
+
+	train_document_matrix, train_mask_matrix = get_document_matrix(train_documents_dataframe, max_sequence_length)
+	train_matrices = (train_document_matrix, train_mask_matrix)
+	validation_document_matrix, validation_mask_matrix = get_document_matrix(validation_documents_dataframe, max_sequence_length)
+	validation_matrices = (validation_document_matrix, validation_mask_matrix)
+	test_document_matrix, test_mask_matrix = get_document_matrix(test_documents_dataframe, max_sequence_length)
+	test_matrices = (test_document_matrix, test_mask_matrix)
+
+	if 'target' in task:
+		train_target_matrix, target_encoders = get_target_matrix(train_dataframe, task['target']['column_indices'], task['task_type'])
+		train_matrices += (train_target_matrix,)
+		validation_target_matrix, target_encoders = get_target_matrix(validation_dataframe, task['target']['column_indices'], task['task_type'])
+		validation_matrices += (validation_target_matrix,)
+		test_target_matrix, target_encoders = get_target_matrix(test_dataframe, task['target']['column_indices'], task['task_type'])
+		test_matrices += (test_target_matrix,)
+
 	vocab_size = len(text_encoder.encoder)
+
 	train_set = Dataset(device, task['task_type'], vocab_size, *train_matrices)
 	validation_set = Dataset(device, task['task_type'], vocab_size, *validation_matrices)
 	test_set = Dataset(device, task['task_type'], vocab_size, *test_matrices)
@@ -37,11 +53,12 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	}
 	return data.DataLoader(train_set, **data_params), data.DataLoader(validation_set, **data_params), data.DataLoader(test_set, **data_params)
 
+
 def load_dataframe(path, file_type, has_header):
 	if file_type == 'csv':
 		separator = ','
 	elif file_type == 'tsv':
-		separator = sep='\t'
+		separator = '\t'
 	else:
 		raise NotImplementedError('Cannot load {} file type'.format(file_type))
 	if has_header:
@@ -69,11 +86,7 @@ def get_target_matrix(dataframe, target_indices, task_type, encoders=None):
 			target_matrix = target_matrix.reshape(-1)
 		return target_matrix, encoders
 
-def get_document_matrix(dataframe, document_list, task_type, text_encoder, verbose):
-	documents_dataframe = create_documents(dataframe, document_list, task_type, text_encoder, verbose)
-	# TODO replace max_sequence length
-	max_sequence_length = max([documents_dataframe[column].apply(lambda x: len(x)).max() for column in documents_dataframe.columns])
-	# max_sequence_length = 77
+def get_document_matrix(documents_dataframe, max_sequence_length):
 	document_matrices = [np.stack(documents_dataframe[column].apply(lambda x: np.pad(x, (0, max_sequence_length - len(x)), mode='constant')).values) for column in documents_dataframe.columns]
 	mask_matrices = [np.stack(documents_dataframe[column].apply(lambda x: np.pad(np.ones(len(x)), (0, max_sequence_length - len(x)), mode='constant')).values) for column in documents_dataframe.columns]
 	document_matrix = np.concatenate([document_matrix.reshape(-1, 1, max_sequence_length) for document_matrix in document_matrices], axis=1)
@@ -121,3 +134,8 @@ def split_data(matrices, split=.2):
 		split1_matrices += (split1_matrix,)
 		split2_matrices += (split2_matrix,)
 	return split1_matrices, split2_matrices
+
+def split_dataframe(dataframe, split=.2):
+	split_df2 = dataframe.sample(frac=split, replace=False)
+	split_df1 = dataframe.drop(split_df2.index)
+	return split_df1, split_df2
