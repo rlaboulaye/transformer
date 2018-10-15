@@ -31,7 +31,7 @@ class Logger(object):
 
 	def log(self):
 		with open('{}/results.json'.format(self.results_directory), 'w') as file_obj:
-			json.dump(self.results, file_obj)
+			json.dump(self.results, file_obj, indent=4)
 
 	def plot(self):
 		plt.figure()
