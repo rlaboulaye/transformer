@@ -117,24 +117,6 @@ def create_documents(dataframe, document_list, task_type, text_encoder, verbose)
 		assert(documents_dataframe.shape[1] == 1)
 		return documents_dataframe.progress_apply(lambda x: [text_encoder.start_token] + x + [text_encoder.classify_token], axis=1)
 
-def split_data(matrices, split=.2):
-	# Check that all matrices have the same number of rows
-	assert(1 == len(set([matrix.shape[0] for matrix in matrices])))
-	num_rows = matrices[0].shape[0]
-	permutation = np.random.permutation(num_rows)
-	split1_end_index = round(num_rows * float(1 - split))
-	split1_range = range(split1_end_index)
-	split2_range = range(split1_end_index, num_rows)
-	split1_matrices = ()
-	split2_matrices = ()
-	for matrix in matrices:
-		permuted_matrix = matrix[permutation]
-		split1_matrix = permuted_matrix[split1_range]
-		split2_matrix = permuted_matrix[split2_range]
-		split1_matrices += (split1_matrix,)
-		split2_matrices += (split2_matrix,)
-	return split1_matrices, split2_matrices
-
 def split_dataframe(dataframe, split=.2):
 	split_df2 = dataframe.sample(frac=split, replace=False)
 	split_df1 = dataframe.drop(split_df2.index)
