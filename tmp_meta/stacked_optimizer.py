@@ -32,7 +32,7 @@ class StackedOptimizer(nn.Module):
 		self.local_model.copy_params_to(model)
 
 	def forward(self, model_with_grads, loss):
-		loss_t = loss.detach().view(-1, 1)
+		loss_t = loss.clone().detach().view(-1, 1)
 		modules = [module for module in model_with_grads.modules() if len(module._parameters) > 0]
 		for module_index, module in enumerate(modules):
 			optimizer = self.optimizers[module_index]

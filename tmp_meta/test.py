@@ -20,7 +20,6 @@ def train_network(train_set, test_set, loss_function, optimizer, meta_optimizer,
 	for epoch in range(epochs):
 		losses = []
 		for batch_index, batch in enumerate(train_set):
-			print(batch_index)
 			x = batch[:,:-1]
 			y = batch[:,-1]
 			x = torch.tensor(x, dtype=torch.float32, device=device)
@@ -32,49 +31,31 @@ def train_network(train_set, test_set, loss_function, optimizer, meta_optimizer,
 			tuned_mlp = optimizer(mlp, loss)
 			losses.append(loss)
 			#
-			y_hat = tuned_mlp(x).view(-1)
-			loss = loss_function(y_hat, y).sqrt() - loss.detach()
-			meta_optimizer.zero_grad()
-			loss.backward(retain_graph=True)
-			meta_optimizer.step()
+			# y_hat = tuned_mlp(x).view(-1)
+			# loss = loss_function(y_hat, y).sqrt() - loss.detach()
+			# meta_optimizer.zero_grad()
+			# loss.backward(retain_graph=True)
+			# meta_optimizer.step()
 			#
 		losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
 		loss = losses.mean(-1)
-		print('Epoch {}: {}'.format(epoch, loss.cpu().item()))
-		import sys
-		sys.exit(0)
-	###
-	y_hat = tuned_mlp(x).view(-1)
-	loss = torch.sqrt(loss_function(y_hat, y))
-	meta_optimizer.zero_grad()
-	print('Grad: {}'.format(optimizer.optimizers[0].W_theta.weight.grad))
-	loss.backward()
-	print('Grad: {}'.format(optimizer.optimizers[0].W_theta.weight.grad))
-	import sys
-	sys.exit(0)
-	###
-	mlp = MLP(X_Y.shape[-1] - 1, 1, 32)
-	optimizer.update_params(mlp.parameters())
+		print('Epoch {} Train Loss: {}'.format(epoch, loss.cpu().item()))
 	losses = []
 	for batch in test_set:
 		x = batch[:,:-1]
 		y = batch[:,-1]
 		x = torch.tensor(x, dtype=torch.float32, device=device)
 		y = torch.tensor(y, dtype=torch.float32, device=device)
-		y_hat = mlp(x).view(-1)
+		y_hat = tuned_mlp(x).view(-1)
 		loss = torch.sqrt(loss_function(y_hat, y))
 		losses.append(loss)
 	losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
 	loss = losses.mean(-1)
-	# print(optimizer.W_theta.weight)
 	meta_optimizer.zero_grad()
 	loss.backward()
-	# for param in optimizer.parameters():
-	# 	print(param.grad)
-	print('Grad: {}'.format(optimizer.W_theta.weight.grad))
+	print('Grad: {}'.format(optimizer.optimizers[0].W_theta.weight.grad))
 	meta_optimizer.step()
-	# print(optimizer.W_theta.weight)
-	return loss
+	print('Epoch Test Loss: {}'.format(loss.cpu().item()))
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -120,8 +101,8 @@ meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 # meta_optimizer.step()
 ###
 
-meta_epochs = 5
+meta_epochs = 20
 epochs = 5
 for meta_epoch in range(meta_epochs):
 	print('Meta Epoch {}'.format(meta_epoch))
-	loss = train_network(train_set, test_set, loss_function, optimizer, meta_optimizer, device, epochs)
+	train_network(train_set, test_set, loss_function, optimizer, meta_optimizer, device, epochs)

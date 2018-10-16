@@ -125,15 +125,15 @@ class LSTMOptimizer(nn.Module):
 		i_t = self.activation(self.W_grad(torch.cat([output_t.view(batch_size, -1), theta_tm1, i_tm1], dim=-1)))
 		delta_t = self.momentum * delta_tm1 - i_t * grad_t
 		theta_t = f_t * theta_tm1 + delta_t
-		self.f_tm1[parameter_name] = f_t.view(self.f_tm1[parameter_name].shape)
-		self.i_tm1[parameter_name] = i_t.view(self.i_tm1[parameter_name].shape)
-		self.theta_tm1[parameter_name] = theta_t.view(self.theta_tm1[parameter_name].shape)
-		self.delta_tm1[parameter_name] = delta_t.view(self.delta_tm1[parameter_name].shape)
+		self.f_tm1[parameter_name] = f_t.view(self.local_module._parameters[parameter_name].shape)
+		self.i_tm1[parameter_name] = i_t.view(self.local_module._parameters[parameter_name].shape)
+		self.theta_tm1[parameter_name] = theta_t.view(self.local_module._parameters[parameter_name].shape)
+		self.delta_tm1[parameter_name] = delta_t.view(self.local_module._parameters[parameter_name].shape)
 		self.state_tm1[parameter_name] = state_t
 		return theta_t
 
 	def forward(self, module_with_grads, loss_t):
 		for parameter_name in module_with_grads._parameters:
 			parameter = module_with_grads._parameters[parameter_name]
-			grad_t = parameter.grad.detach().view(-1, 1)
+			grad_t = parameter.grad.clone().detach().view(-1, 1)
 			self.local_module._parameters[parameter_name] = self.update_rule(grad_t, grad_t.new_full(grad_t.shape, loss_t.item()), parameter_name).view(parameter.shape)
