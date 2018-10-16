@@ -29,7 +29,7 @@ def train_network(train_set, test_set, optimizer, meta_optimizer, device, epochs
 			y = torch.tensor(y, dtype=torch.float32, device=device)
 			y_hat = mlp(x).view(-1)
 			loss = torch.sqrt(loss_function(y_hat, y))
-			optimizer.zero_grad()
+			mlp.zero_grad()
 			loss.backward()
 			optimizer(loss)
 			losses.append(loss)
@@ -80,14 +80,38 @@ train_set = X_Y[:round(train_test_split * X_Y.shape[0])]
 test_set = X_Y[round(train_test_split * X_Y.shape[0]):]
 
 mlp = MLP(X_Y.shape[-1] - 1, 1, 32)
-mlp.to(device)
 
-optimizer = LSTMOptimizer(mlp.parameters())
+optimizer = LSTMOptimizer(mlp)
 optimizer.to(device)
 meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 
-meta_epochs = 5
-epochs = 5
-for meta_epoch in range(meta_epochs):
-	print('Meta Epoch {}'.format(meta_epoch))
-	loss = train_network(train_set, test_set, optimizer, meta_optimizer, device, epochs)
+###
+loss_function = MSELoss()
+mlp = MLP(X_Y.shape[-1] - 1, 1, 32)
+mlp.to(device)
+batch = train_set[0]
+x = batch[:,:-1]
+y = batch[:,-1]
+x = torch.tensor(x, dtype=torch.float32, device=device)
+y = torch.tensor(y, dtype=torch.float32, device=device)
+y_hat = mlp(x).view(-1)
+loss = torch.sqrt(loss_function(y_hat, y))
+mlp.zero_grad()
+loss.backward()
+local_mlp = optimizer(mlp, loss)
+y_hat = local_mlp(x).view(-1)
+loss = torch.sqrt(loss_function(y_hat, y))
+meta_optimizer.zero_grad()
+loss.backward()
+print(optimizer.W_theta.weight.grad)
+meta_optimizer.step()
+###
+
+# meta_epochs = 5
+# epochs = 5
+# for meta_epoch in range(meta_epochs):
+# 	print('Meta Epoch {}'.format(meta_epoch))
+# 	loss = train_network(train_set, test_set, optimizer, meta_optimizer, device, epochs)
+
+
+### haven't yet properly initialized the weights of either model

@@ -2,11 +2,15 @@ import numpy as np
 import torch
 from torch import nn
 
+from local_model import LocalModel
+
 
 class LSTMOptimizer(nn.Module):
 
-	def __init__(self, params, hidden_size=20, num_layers=1, momentum=.1):
+	def __init__(self, model, hidden_size=20, num_layers=1, momentum=0):
 		super(LSTMOptimizer, self).__init__()
+
+		self.local_model = LocalModel(model)
 
 		self.device = 'cpu'
 		self.momentum = momentum
@@ -29,10 +33,10 @@ class LSTMOptimizer(nn.Module):
 		self.initialize_optimizer_params()
 
 		self.theta_0 = nn.ParameterList()
-		for group in params:
+		for group in self.local_model.get_params():
 			self.theta_0.append(nn.Parameter(torch.zeros(group.shape).normal_(0, np.sqrt(2. / sum(group.shape)))))
 
-		self.set_params(params)
+		self.set_params(self.local_model.get_params())
 
 	def initialize_optimizer_params(self, window=.01):
 		for param in self.lstm.parameters():
@@ -44,24 +48,24 @@ class LSTMOptimizer(nn.Module):
 
 	def to(self, device):
 		self.device = device
+		self.local_model.model = self.local_model.model.to(device)
 		super(LSTMOptimizer, self).to(device)
-		for group_index in range(len(self.param_groups)):
+		for group_index in range(len(self.theta_tm1)):
 			self.f_tm1[group_index] = self.f_tm1[group_index].to(device)
 			self.i_tm1[group_index] = self.i_tm1[group_index].to(device)
 			self.theta_tm1[group_index] = self.theta_tm1[group_index].to(device)
 			self.delta_tm1[group_index] = self.delta_tm1[group_index].to(device)
-			if self.self.state_tm1[group_index] is not None:
+			if self.state_tm1[group_index] is not None:
 				self.state_tm1[group_index] = (self.state_tm1[group_index][0].to(device), self.state_tm1[group_index][1].to(device))
 		return self
 
 	def set_params(self, params):
-		self.param_groups = list(params)
 		self.f_tm1 = []
 		self.i_tm1 = []
 		self.theta_tm1 = []
 		self.delta_tm1 = []
 		self.state_tm1 = []
-		for group_index, group in enumerate(self.param_groups):
+		for group_index, group in enumerate(params):
 			self.f_tm1.append(torch.ones(group.shape, device=self.device))
 			self.i_tm1.append(torch.zeros(group.shape, device=self.device))
 			self.theta_tm1.append(self.theta_0[group_index])
@@ -75,12 +79,6 @@ class LSTMOptimizer(nn.Module):
 	def update_params(self, params):
 		for group_index, group in enumerate(params):
 			group.data.copy_(self.theta_tm1[group_index].data)
-
-	def zero_grad(self):
-		for group in self.param_groups:
-			if group.grad is not None:
-				group.grad.detach_()
-				group.grad.zero_()
 
 	def preprocess(self, x):
 		return torch.cat([self.preprocess_1(x).view(x.shape + (1,)), self.preprocess_2(x).view(x.shape + (1,))], dim=-1)
@@ -135,7 +133,12 @@ class LSTMOptimizer(nn.Module):
 		self.state_tm1[group_index] = state_t
 		return theta_t
 
-	def forward(self, loss_t):
-		for group_index, group in enumerate(self.param_groups):
+	def forward(self, model_with_grads, loss):
+		params = []
+		for group_index, group in enumerate(model_with_grads.parameters()):
 			grad_t = group.grad.detach().view(-1, 1)
-			group.data.copy_(self.update_rule(grad_t, grad_t.new_full(grad_t.shape, loss_t.item()), group_index).view(group.shape).data)
+			loss_t = loss.detach()
+			params.append(self.update_rule(grad_t, grad_t.new_full(grad_t.shape, loss_t.item()), group_index).view(group.shape))
+		self.local_model.set_params(params)
+		self.local_model.copy_params_to(model_with_grads)
+		return self.local_model.model
