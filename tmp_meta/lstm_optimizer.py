@@ -127,8 +127,8 @@ class LSTMOptimizer(nn.Module):
 		theta_t = f_t * theta_tm1 + delta_t
 		self.f_tm1[parameter_name] = f_t.view(self.f_tm1[parameter_name].shape)
 		self.i_tm1[parameter_name] = i_t.view(self.i_tm1[parameter_name].shape)
-		self.theta_tm1[parameter_name] = theta_t.view(self.f_tm1[parameter_name].shape)
-		self.delta_tm1[parameter_name] = delta_t.view(self.f_tm1[parameter_name].shape)
+		self.theta_tm1[parameter_name] = theta_t.view(self.theta_tm1[parameter_name].shape)
+		self.delta_tm1[parameter_name] = delta_t.view(self.delta_tm1[parameter_name].shape)
 		self.state_tm1[parameter_name] = state_t
 		return theta_t
 

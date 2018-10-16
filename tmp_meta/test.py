@@ -20,19 +20,29 @@ def train_network(train_set, test_set, loss_function, optimizer, meta_optimizer,
 	for epoch in range(epochs):
 		losses = []
 		for batch_index, batch in enumerate(train_set):
+			print(batch_index)
 			x = batch[:,:-1]
 			y = batch[:,-1]
 			x = torch.tensor(x, dtype=torch.float32, device=device)
 			y = torch.tensor(y, dtype=torch.float32, device=device)
 			y_hat = mlp(x).view(-1)
-			loss = torch.sqrt(loss_function(y_hat, y))
+			loss = loss_function(y_hat, y).sqrt()
 			mlp.zero_grad()
 			loss.backward()
 			tuned_mlp = optimizer(mlp, loss)
 			losses.append(loss)
+			#
+			y_hat = tuned_mlp(x).view(-1)
+			loss = loss_function(y_hat, y).sqrt() - loss.detach()
+			meta_optimizer.zero_grad()
+			loss.backward(retain_graph=True)
+			meta_optimizer.step()
+			#
 		losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
 		loss = losses.mean(-1)
 		print('Epoch {}: {}'.format(epoch, loss.cpu().item()))
+		import sys
+		sys.exit(0)
 	###
 	y_hat = tuned_mlp(x).view(-1)
 	loss = torch.sqrt(loss_function(y_hat, y))
