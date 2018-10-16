@@ -5,7 +5,7 @@ from torch import nn
 from torch.optim import Adam
 from torch.nn.modules.loss import MSELoss
 
-from lstm_optimizer import LSTMOptimizer
+from stacked_optimizer import StackedOptimizer
 from mlp import MLP
 
 
@@ -81,7 +81,7 @@ test_set = X_Y[round(train_test_split * X_Y.shape[0]):]
 
 mlp = MLP(X_Y.shape[-1] - 1, 1, 32)
 
-optimizer = LSTMOptimizer(mlp)
+optimizer = StackedOptimizer(mlp)
 optimizer.to(device)
 meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 
@@ -89,6 +89,9 @@ meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 loss_function = MSELoss()
 mlp = MLP(X_Y.shape[-1] - 1, 1, 32)
 mlp.to(device)
+optimizer.reset_state()
+optimizer.initialize_params(mlp)
+
 batch = train_set[0]
 x = batch[:,:-1]
 y = batch[:,-1]
@@ -99,11 +102,12 @@ loss = torch.sqrt(loss_function(y_hat, y))
 mlp.zero_grad()
 loss.backward()
 local_mlp = optimizer(mlp, loss)
+
 y_hat = local_mlp(x).view(-1)
 loss = torch.sqrt(loss_function(y_hat, y))
 meta_optimizer.zero_grad()
 loss.backward()
-print(optimizer.W_theta.weight.grad)
+print(optimizer.optimizers[0].W_theta.weight.grad)
 meta_optimizer.step()
 ###
 
