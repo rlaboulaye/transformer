@@ -3,15 +3,15 @@ import pandas as pd
 import torch
 from torch import nn
 from torch.optim import Adam, SGD
-from torch.nn.modules.loss import MSELoss
+from torch.nn.modules.loss import MSELoss, CrossEntropyLoss
 
 from stacked_optimizer import StackedOptimizer
 from mlp import MLP
 
 
-def train_network(train_set, test_set, loss_function, optimizer, meta_optimizer, device, epochs):
+def train_network(train_set, test_set, num_classes, loss_function, optimizer, meta_optimizer, device, epochs):
 
-	mlp = MLP(X_Y.shape[-1] - 1, 1, 32)
+	mlp = MLP(X_Y.shape[-1] - 1, num_classes, 32)
 	mlp.to(device)
 
 	optimizer.reset_state()
@@ -19,7 +19,7 @@ def train_network(train_set, test_set, loss_function, optimizer, meta_optimizer,
 
 	#
 	# optimizer = Adam(mlp.parameters(), lr=.001)
-	# optimizer = SGD(mlp.parameters(), lr=.000003)
+	# optimizer = SGD(mlp.parameters(), lr=.05)
 	#
 
 	for epoch in range(epochs):
@@ -32,8 +32,8 @@ def train_network(train_set, test_set, loss_function, optimizer, meta_optimizer,
 			x = batch[:,:-1]
 			y = batch[:,-1]
 			x = torch.tensor(x, dtype=torch.float32, device=device)
-			y = torch.tensor(y, dtype=torch.float32, device=device)
-			y_hat = mlp(x).view(-1)
+			y = torch.tensor(y, dtype=torch.int64, device=device)
+			y_hat = mlp(x)
 			loss = loss_function(y_hat, y).sqrt()
 			mlp.zero_grad()
 			loss.backward()
@@ -60,38 +60,36 @@ def train_network(train_set, test_set, loss_function, optimizer, meta_optimizer,
 		x = batch[:,:-1]
 		y = batch[:,-1]
 		x = torch.tensor(x, dtype=torch.float32, device=device)
-		y = torch.tensor(y, dtype=torch.float32, device=device)
-		y_hat = mlp(x).view(-1)
+		y = torch.tensor(y, dtype=torch.int64, device=device)
+		y_hat = mlp(x)
 		loss = torch.sqrt(loss_function(y_hat, y))
 		losses.append(loss)
 	losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
 	loss = losses.mean(-1)
 	meta_optimizer.zero_grad()
 	loss.backward()
-	# print('Grad: {}'.format(optimizer.optimizers[0].W_theta.weight.grad))
-	# print('Grad: {}'.format(optimizer.optimizers[0].W_grad.weight.grad))
-	# print('Grad: {}'.format(optimizer.optimizers[1].W_theta.weight.grad))
-	# print('Grad: {}'.format(optimizer.optimizers[1].W_grad.weight.grad))
 	meta_optimizer.step()
 	print('Epoch Test Loss: {}'.format(loss.cpu().item()))
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-meta_epochs = 100
+meta_epochs = 500
 epochs = 20
 
-batch_size = 8
+batch_size = 4
 train_test_split = .08
 
-df = pd.read_csv('data.csv')
+df = pd.read_csv('ecoli_encoded.csv')
 X_Y = df.values
 X_Y = X_Y.reshape(-1, batch_size, X_Y.shape[-1])
 train_set = X_Y[:round(train_test_split * X_Y.shape[0])]
 test_set = X_Y[round(train_test_split * X_Y.shape[0]):]
+num_classes = len(set(X_Y[:,:,-1].reshape(-1)))
 
-loss_function = MSELoss()
 
-mlp = MLP(X_Y.shape[-1] - 1, 1, 32)
+loss_function = CrossEntropyLoss()
+
+mlp = MLP(X_Y.shape[-1] - 1, num_classes, 32)
 
 optimizer = StackedOptimizer(mlp)
 optimizer.to(device)
@@ -100,6 +98,6 @@ meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 for meta_epoch in range(meta_epochs):
 	print('Meta Epoch {}'.format(meta_epoch))
 	X_Y = np.random.permutation(X_Y)
-	train_set = X_Y[:round(train_test_split * X_Y.shape[0])]
-	test_set = X_Y[round(train_test_split * X_Y.shape[0]):]
-	train_network(train_set, test_set, loss_function, optimizer, meta_optimizer, device, epochs)
+	train_set = X_Y[:25]
+	test_set = X_Y[25:]
+	train_network(train_set, test_set, num_classes, loss_function, optimizer, meta_optimizer, device, epochs)
