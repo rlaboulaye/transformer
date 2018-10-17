@@ -11,7 +11,7 @@ class MultipleChoiceHead(nn.Module):
         self.dropout = nn.Dropout2d(cfg.clf_pdrop)  # To reproduce the noise_shape parameter of TF implementation
         self.linear = nn.Linear(cfg.n_embd, 1)
 
-        nn.init.normal_(self.linear.weight, std = 0.02)
+        nn.init.normal_(self.linear.weight, std=0.02)
         nn.init.normal_(self.linear.bias, 0)
 
     def forward(self, h, x):
