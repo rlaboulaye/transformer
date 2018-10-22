@@ -1,0 +1,57 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema",
+    "definitions": {
+        "task_directory_path": {
+            "type": "string",
+            "description": "The path to a directory containing task description json files"
+        },
+        "keep_coef_init": {
+            "type": "number",
+            "description": "The initialization of the parameter-preserving coefficient"
+        },
+        "lr_init": {
+            "type": "number",
+            "description": "The initialization of the learning rate"
+        },
+        "meta_lr": {
+            "type": "number",
+            "description": "The learning rate for the meta optimizer"
+        },
+        "meta_epochs": {
+            "type": "integer",
+            "description": "The number of training epochs for the optimizer"
+        },
+        "base_epochs": {
+            "type": "integer",
+            "description": "The number of training epochs for the base model"
+        }
+    },
+    "properties": {
+        "task_directory_path": {
+            "$ref": "#/definitions/task_directory_path"
+        },
+        "keep_coef_init": {
+            "$ref": "#/definitions/keep_coef_init"
+        },
+        "lr_init": {
+            "$ref": "#/definitions/lr_init"
+        },
+        "meta_lr": {
+            "$ref": "#/definitions/meta_lr"
+        },
+        "meta_epochs": {
+            "$ref": "#/definitions/meta_epochs"
+        },
+        "base_epochs": {
+            "$ref": "#/definitions/base_epochs"
+        }
+    },
+    "required": [
+        "task_directory_path",
+        "keep_coef_init",
+        "lr_init",
+        "meta_lr",
+        "meta_epochs",
+        "base_epochs"
+    ]
+}
