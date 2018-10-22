@@ -197,6 +197,7 @@ if __name__ == '__main__':
 	parser.add_argument('--vector_l2', action='store_true')
 	parser.add_argument('--max_grad_norm', type=int, default=1)
 	parser.add_argument('--scores_per_epoch', type=int, default=3)
+	parser.add_argument('--sequence_dim', type=int, default=None)
 	parser.add_argument('--test_split', type=float, default=.2)
 	parser.add_argument('--validation_split', type=float, default=.2)
 	parser.add_argument('--encoder_path', type=str, default='model_params/encoder_bpe_40000.json')
@@ -219,14 +220,13 @@ if __name__ == '__main__':
 
 	text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
 
-	train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose)
+	train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose, max_sequence_length=args.sequence_dim)
 
 	sequence_dim = train_dataloader.dataset.sequence_dim
 	vocab_size = len(text_encoder.encoder) + sequence_dim
 
 	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task, vocab_size, sequence_dim)
 
-	#
 	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
 	# torch.save(dh_model.state_dict(), 'weights.pth')
 	# dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
@@ -281,6 +281,3 @@ if __name__ == '__main__':
 
 	train(train_dataloader, validation_dataloader, dh_model, lm_criterion, task_criterion, model_opt, logger, args)
 	test(test_dataloader, dh_model, lm_criterion, task_criterion, logger, args)
-
-	#TODO: calculate sequence_dim from both train and test
-	#TODO: add number of classes to schema for document classification
