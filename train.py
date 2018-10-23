@@ -220,7 +220,7 @@ if __name__ == '__main__':
 
 	text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
 
-	train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose, max_sequence_length=args.sequence_dim)
+	train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose, sequence_dim=args.sequence_dim)
 
 	sequence_dim = train_dataloader.dataset.sequence_dim
 	vocab_size = len(text_encoder.encoder) + sequence_dim
@@ -246,6 +246,8 @@ if __name__ == '__main__':
 		raise NotImplementedError()
 
 	if args.opt == 'adam':
+		# to freeze weights:
+		# list(dh_model.embedding.parameters) + ...
 		model_opt = Adam(dh_model.parameters(),
 						lr=args.lr,
 						betas=(args.b1, args.b2),
