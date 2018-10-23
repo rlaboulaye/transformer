@@ -113,16 +113,25 @@ def create_documents(dataframe, document_list, task_type, text_encoder, verbose,
 		return documents_dataframe.progress_apply(lambda x: [text_encoder.start_token] + x[documents_dataframe.columns[0]][:doc1_length] + [text_encoder.delimeter_token] + x[documents_dataframe.columns[1]][:doc2_length] + [text_encoder.classify_token], axis=1)
 	elif task_type == 'MultipleChoice':
 		assert(documents_dataframe.shape[1] > 1)
-		num_tokens = 4
-		max_len = max_sequence_dim - num_tokens if max_sequence_dim is not None else None
 		multiple_choice_documents = []
 		common_column_name = documents_dataframe.columns[0]
-		for choice_column_name in documents_dataframe.columns[1:]:
-			if max_len is not None:
-				multiple_choice_documents.append(documents_dataframe[[common_column_name, choice_column_name]].progress_apply(lambda x: [text_encoder.start_token] + x[common_column_name][:math.floor(max_len * (len(x[common_column_name])/(len(x[common_column_name]) + len(x[choice_column_name]))))] + [text_encoder.delimeter_token] + x[choice_column_name][:math.ceil(max_len * (len(x[choice_column_name])/(len(x[common_column_name]) + len(x[choice_column_name]))))] + [text_encoder.classify_token], axis=1))
-			else:
-				multiple_choice_documents.append(
-					documents_dataframe[[common_column_name, choice_column_name]].progress_apply(lambda x: [text_encoder.start_token] + x[common_column_name] + [text_encoder.delimeter_token] + x[choice_column_name] + [text_encoder.classify_token], axis=1))
+
+		if max_sequence_dim is not None:
+			num_tokens = 4
+			max_len = max_sequence_dim - num_tokens
+			documents_dataframe['scale'] = pd.Series(documents_dataframe.apply(lambda x: max_len / (len(x[0]) + max([len(y) for y in x[1:]])), axis=1), index=documents_dataframe.index)
+			scale_column_name = documents_dataframe.columns[-1]
+			for choice_column_name in documents_dataframe.columns[1:-1]:
+				multiple_choice_documents.append(documents_dataframe[[scale_column_name, common_column_name, choice_column_name]].progress_apply(lambda x:
+																																				 [text_encoder.start_token] +
+																																				 x[common_column_name][:math.floor(len(x[common_column_name]) * x[scale_column_name])] +
+																																				 [text_encoder.delimeter_token] +
+																																				 x[choice_column_name][:max_len - math.floor(len(x[common_column_name]) * x[scale_column_name])] +
+																																				 [text_encoder.classify_token], axis=1))
+		else:
+			for choice_column_name in documents_dataframe.columns[1:]:
+				multiple_choice_documents.append(documents_dataframe[[common_column_name, choice_column_name]].progress_apply(lambda x: [text_encoder.start_token] + x[common_column_name] + [text_encoder.delimeter_token] + x[choice_column_name] + [text_encoder.classify_token], axis=1))
+
 		return pd.concat(multiple_choice_documents, axis=1)
 	else:
 		tqdm.pandas(disable=not verbose, ncols=150, desc='Appending special tokens to 1 document for each instance')
