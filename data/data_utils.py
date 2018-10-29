@@ -110,7 +110,7 @@ def create_documents(dataframe, document_list, task_type, text_encoder, verbose,
 	if task_type == 'DocumentSimilarity' or task_type == 'QuestionAnswering':
 		assert(documents_dataframe.shape[1] == 2)
 		num_tokens = 3
-		max_len = sequence_dim - num_tokens
+		max_len = sequence_dim - num_tokens if sequence_dim is not None else None
 		doc1_length = math.ceil(max_len / 2) if sequence_dim is not None else None
 		doc2_length = math.floor(max_len / 2) if sequence_dim is not None else None
 		return documents_dataframe.progress_apply(lambda x: [text_encoder.start_token] + x[documents_dataframe.columns[0]][:doc1_length] + [text_encoder.delimeter_token] + x[documents_dataframe.columns[1]][:doc2_length] + [text_encoder.classify_token], axis=1)
@@ -121,7 +121,7 @@ def create_documents(dataframe, document_list, task_type, text_encoder, verbose,
 		tqdm.pandas(disable=not verbose, ncols=150, desc='Appending special tokens to 1 document for each instance')
 		assert(documents_dataframe.shape[1] == 1)
 		num_tokens = 2
-		doc_length = sequence_dim - num_tokens
+		doc_length = sequence_dim - num_tokens if sequence_dim is not None else None
 		return documents_dataframe.progress_apply(lambda x: [text_encoder.start_token] + x[:doc_length] + [text_encoder.classify_token], axis=1)
 
 def create_multiple_choice_documents(documents_dataframe, sequence_dim, text_encoder):

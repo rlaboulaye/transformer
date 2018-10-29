@@ -45,15 +45,15 @@ def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task
 		double_head_loss.backward()
 		optimizer.step()
 		optimizer.zero_grad()
-		n_updates += 1
 
-		if n_updates % math.ceil(float(len(train_dataloader)) / float(scores_per_epoch)) == 0 or n_updates == len(train_dataloader):
+		if (n_updates > 0 and n_updates % math.ceil(float(len(train_dataloader)) / float(scores_per_epoch)) == 0) or n_updates == len(train_dataloader):
 			train_loss, train_accuracy = score(train_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose)
 			validation_loss, validation_accuracy = score(validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose)
 			train_losses.append(train_loss)
 			train_accuracies.append(train_accuracy)
 			validation_losses.append(validation_loss)
 			validation_accuracies.append(validation_accuracy)
+		n_updates += 1
 
 	return train_losses, train_accuracies, validation_losses, validation_accuracies
 
@@ -232,9 +232,6 @@ if __name__ == '__main__':
 	# dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
 	# verbose_print('Loading Weights')
 	# dh_model.load_state_dict(torch.load('weights.pth'))
-	#
-
-	#
 
 	lm_criterion = nn.CrossEntropyLoss(reduction='none')
 
@@ -246,12 +243,10 @@ if __name__ == '__main__':
 		raise NotImplementedError()
 
 	if args.opt == 'adam':
-		# to freeze weights:
-		# list(dh_model.embedding.parameters) + ...
 		model_opt = Adam(dh_model.parameters(),
-						lr=args.lr,
-						betas=(args.b1, args.b2),
-						eps=args.eps)
+						 lr=args.lr,
+						 betas=(args.b1, args.b2),
+						 eps=args.eps)
 	elif args.opt == 'openai_adam':
 		n_updates_total = (train_dataloader.dataset.instances.shape[0] // args.batch_size) * args.n_iter
 		model_opt = OpenAIAdam(dh_model.parameters(),
@@ -272,14 +267,14 @@ if __name__ == '__main__':
 
 	task_file_name = os.path.basename(args.task_path)
 	task_name = os.path.join(os.path.splitext(task_file_name)[0],
-							'{}tr__{}val__{}te'.format(train_dataloader.dataset.instances.shape[0],
-												validation_dataloader.dataset.instances.shape[0],
-												test_dataloader.dataset.instances.shape[0])
-		)
+							 '{}tr__{}val__{}te'.format(train_dataloader.dataset.instances.shape[0],
+														validation_dataloader.dataset.instances.shape[0],
+														test_dataloader.dataset.instances.shape[0])
+							 )
 	targets = np.concatenate([train_dataloader.dataset.targets, validation_dataloader.dataset.targets, test_dataloader.dataset.targets])
 	default_accuracy = float(mode(targets).count[0]) / float(len(targets))
 	scores_per_epoch = args.scores_per_epoch
 	logger = Logger(vars(args), task_name, scores_per_epoch, default_accuracy)
-
 	train(train_dataloader, validation_dataloader, dh_model, lm_criterion, task_criterion, model_opt, logger, args)
 	test(test_dataloader, dh_model, lm_criterion, task_criterion, logger, args)
+
