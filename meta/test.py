@@ -74,7 +74,7 @@ def train_network(train_set, test_set, num_classes, loss_function, optimizer, me
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 meta_epochs = 500
-epochs = 20
+epochs = 5
 
 batch_size = 4
 train_test_split = .08
@@ -98,6 +98,6 @@ meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 for meta_epoch in range(meta_epochs):
 	print('Meta Epoch {}'.format(meta_epoch))
 	X_Y = np.random.permutation(X_Y)
-	train_set = X_Y[:25]
-	test_set = X_Y[25:]
+	train_set = X_Y[:10]
+	test_set = X_Y[10:]
 	train_network(train_set, test_set, num_classes, loss_function, optimizer, meta_optimizer, device, epochs)

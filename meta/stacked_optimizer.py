@@ -18,7 +18,7 @@ class StackedOptimizer(nn.Module):
 
 	def initialize_optimizers(self, hidden_size, num_layers, momentum):
 		self.optimizers = nn.ModuleList()
-		modules = [module for module in self.local_model.model.modules() if len(module._parameters) > 0]
+		modules = [module for module in self.local_model.model.modules() if len([param for param in module._parameters.values() if param.requires_grad]) > 0]
 		for module in modules:
 			self.optimizers.append(LSTMOptimizer(module, hidden_size, num_layers, momentum))
 
@@ -33,7 +33,7 @@ class StackedOptimizer(nn.Module):
 
 	def forward(self, model_with_grads, loss):
 		loss_t = loss.clone().detach().view(-1, 1)
-		modules = [module for module in model_with_grads.modules() if len(module._parameters) > 0]
+		modules = [module for module in model_with_grads.modules() if len([param for param in module._parameters.values() if param.requires_grad]) > 0]
 		for module_index, module in enumerate(modules):
 			optimizer = self.optimizers[module_index]
 			optimizer(module, loss_t)
