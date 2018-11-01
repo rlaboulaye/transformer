@@ -8,7 +8,7 @@ from .attention import Attention
 class Block(nn.Module):
     def __init__(self, n_ctx, cfg, scale=False):
         super(Block, self).__init__()
-        nx = cfg.n_embd
+        nx = cfg['n_embd']
         self.attn = Attention(nx, n_ctx, cfg, scale)
         self.ln_1 = LayerNorm(nx)
         self.mlp = MLP(4 * nx, cfg)

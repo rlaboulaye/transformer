@@ -6,10 +6,10 @@ class MultipleChoiceHead(nn.Module):
 
     def __init__(self, clf_token, cfg):
         super(MultipleChoiceHead, self).__init__()
-        self.n_embd = cfg.n_embd
+        self.n_embd = cfg['n_embd']
         self.clf_token = clf_token
-        self.dropout = nn.Dropout2d(cfg.clf_pdrop)  # To reproduce the noise_shape parameter of TF implementation
-        self.linear = nn.Linear(cfg.n_embd, 1)
+        self.dropout = nn.Dropout2d(cfg['clf_pdrop'])  # To reproduce the noise_shape parameter of TF implementation
+        self.linear = nn.Linear(cfg['n_embd'], 1)
 
         nn.init.normal_(self.linear.weight, std = 0.02)
         nn.init.normal_(self.linear.bias, 0)

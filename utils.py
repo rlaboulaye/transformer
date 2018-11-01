@@ -31,10 +31,10 @@ def get_device(verbose=True):
 		print("device: {}".format(device))
 	return device
 
-def validate_task(task, task_schema_path='schema/task_schema.json'):
-	with open(task_schema_path, 'r') as task_schema_file:
-		task_schema = json.load(task_schema_file)
+def validate_against_schema(schema_instance, schema_path):
+	with open(schema_path, 'r') as schema_file:
+		schema = json.load(schema_file)
 	try:
-		validate(task, task_schema)
+		validate(schema_instance, schema)
 	except ValidationError as err:
-		sys.exit('EXCEPTION: THE TASK FAILED TO VALIDATE AGAINST THE TASK SCHEMA.\n\n{}'.format(err))
+		sys.exit('EXCEPTION: THE SCHEMA INSTANCE FAILED TO VALIDATE AGAINST THE SCHEMA.\n\n{}'.format(err))

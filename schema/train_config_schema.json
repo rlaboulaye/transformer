@@ -1,25 +1,16 @@
 {
     "$schema": "http://json-schema.org/draft-04/schema",
     "definitions": {
-        "file_path": {
-            "type": "string"
-        },
         "task_path": {
-            "allOf": {
-                "$ref": "#/definitions/file_path"
-            },
+            "type": "string",
             "description": "The path to a task description json file"
         },
         "encoder_path": {
-            "allOf": {
-                "$ref": "#/definitions/file_path"
-            },
+            "type": "string",
             "description": "The path to a byte pair encoding encoder json file"
         },
         "bpe_path": {
-            "allOf": {
-                "$ref": "#/definitions/file_path"
-            },
+            "type": "string",
             "description": "The path to a byte pair encoding vocab bpe file"
         },
         "afn": {
@@ -35,7 +26,8 @@
             "type": "string",
             "enum": [
                 "adam",
-                "openai_adam"
+                "openai_adam",
+                "sgd"
             ],
             "description": "The optimizer used to train the network"
         },
@@ -100,7 +92,7 @@
             "description": "The learning rate (not used by the meta optimizer)"
         },
         "lr_schedule": {
-            "type": "number",
+            "type": "string",
             "description": "The learning rate schedule (only used by openai adam)"
         },
         "lr_warmup": {
@@ -124,7 +116,7 @@
             "description": "The l2 regularization coefficient"
         },
         "vector_l2": {
-            "type": "number",
+            "type": "boolean",
             "description": "Indicates need for vector_l2"
         },
         "max_grad_norm": {
@@ -227,7 +219,6 @@
         "seed",
         "n_iter",
         "scores_per_epoch",
-        "test_split",
         "validation_split",
         "batch_size",
         "n_embd",

@@ -7,10 +7,10 @@ class ClassificationHead(nn.Module):
     TODO: test this class."""
     def __init__(self, clf_token, cfg, n_class):
         super(ClassificationHead, self).__init__()
-        self.n_embd = cfg.n_embd
+        self.n_embd = cfg['n_embd']
         self.clf_token = clf_token
-        self.dropout = nn.Dropout(cfg.clf_pdrop)
-        self.linear = nn.Linear(cfg.n_embd, n_class)
+        self.dropout = nn.Dropout(cfg['clf_pdrop'])
+        self.linear = nn.Linear(cfg['n_embd'], n_class)
 
         nn.init.normal_(self.linear.weight, std = 0.02)
         nn.init.normal_(self.linear.bias, 0)

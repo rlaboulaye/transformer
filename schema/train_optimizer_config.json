@@ -1,5 +1,5 @@
 {
-    "$schema": "train_optimizer_config_schema.json",
+    "$schema": "schema/train_optimizer_config_schema.json",
     "task_directory_path": "/users/data/metanlp/nlp_datasets/airline_twitter_sentiment/airline_sampled_tasks/",
     "keep_coef_init": 0.9999,
     "lr_init": 0.0001,

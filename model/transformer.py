@@ -10,10 +10,10 @@ class Transformer(nn.Module):
     def __init__(self, cfg, vocab=40990, n_ctx=512):
         super(Transformer, self).__init__()
         self.vocab = vocab
-        self.embed = nn.Embedding(vocab, cfg.n_embd)
-        self.drop = nn.Dropout(cfg.embd_pdrop)
+        self.embed = nn.Embedding(vocab, cfg['n_embd'])
+        self.drop = nn.Dropout(cfg['embd_pdrop'])
         block = Block(n_ctx, cfg, scale=True)
-        self.h = nn.ModuleList([copy.deepcopy(block) for _ in range(cfg.n_layer)])
+        self.h = nn.ModuleList([copy.deepcopy(block) for _ in range(cfg['n_layer'])])
 
         nn.init.normal_(self.embed.weight, std=0.02)
 

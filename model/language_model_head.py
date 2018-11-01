@@ -6,7 +6,7 @@ class LanguageModelHead(nn.Module):
 
     def __init__(self, model, cfg):
         super(LanguageModelHead, self).__init__()
-        self.n_embd = cfg.n_embd
+        self.n_embd = cfg['n_embd']
         embed_shape = model.embed.weight.shape
         self.decoder = nn.Linear(embed_shape[1], embed_shape[0], bias=False)
         self.decoder.weight = model.embed.weight # Tied weights
