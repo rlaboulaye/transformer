@@ -31,13 +31,10 @@ class LSTMOptimizer(nn.Module):
 		self.W_grad = nn.Linear(input_dim, 1, bias=True)
 		self.initialize_optimizer_params()
 
-		self.theta_0 = nn.Module()
-		for parameter_name in self.local_module._parameters:
-			parameter = self.local_module._parameters[parameter_name]
-			if len(parameter.shape) == 1:
-				setattr(self.theta_0, parameter_name, nn.Parameter(torch.zeros(parameter.shape, device=self.device).normal_(0, .1)))
-			else:
-				setattr(self.theta_0, parameter_name, nn.Parameter(torch.zeros(parameter.shape, device=self.device).normal_(0, np.sqrt(2. / sum(parameter.shape)))))
+		shapes = [param.shape for param in self.local_module._parameters.values()]
+		input_and_output_size = np.max([np.sum(shape) for shape in shapes])
+		shape = (np.sum([np.prod(shape) for shape in shapes]), 1)
+		self.theta_0 = nn.Parameter(torch.zeros(shape, device=self.device).normal_(0, np.sqrt(2. / input_and_output_size)))
 
 		self.reset_state()
 
@@ -52,32 +49,28 @@ class LSTMOptimizer(nn.Module):
 	def to(self, device):
 		self.device = device
 		super(LSTMOptimizer, self).to(device)
-		for parameter_name in self.theta_tm1:
-			self.f_tm1[parameter_name] = self.f_tm1[parameter_name].to(device)
-			self.i_tm1[parameter_name] = self.i_tm1[parameter_name].to(device)
-			self.theta_tm1[parameter_name] = self.theta_tm1[parameter_name].to(device)
-			self.delta_tm1[parameter_name] = self.delta_tm1[parameter_name].to(device)
-			if self.state_tm1[parameter_name] is not None:
-				self.state_tm1[parameter_name] = (self.state_tm1[parameter_name][0].to(device), self.state_tm1[parameter_name][1].to(device))
+		self.theta_0 = self.theta_0.to(device)
+		self.f_tm1 = self.f_tm1.to(device)
+		self.i_tm1 = self.i_tm1.to(device)
+		self.theta_tm1 = self.theta_tm1.to(device)
+		self.delta_tm1 = self.delta_tm1.to(device)
+		if self.state_tm1 is not None:
+			self.state_tm1 = (self.state_tm1[0].to(device), self.state_tm1[1].to(device))
 		return self
 
 	def reset_state(self):
-		self.f_tm1 = {}
-		self.i_tm1 = {}
-		self.theta_tm1 = {}
-		self.delta_tm1 = {}
-		self.state_tm1 = {}
-		for parameter_name in self.local_module._parameters:
-			parameter = self.local_module._parameters[parameter_name]
-			self.f_tm1[parameter_name] = torch.ones(parameter.shape, device=self.device)
-			self.i_tm1[parameter_name] = torch.zeros(parameter.shape, device=self.device)
-			self.theta_tm1[parameter_name] = getattr(self.theta_0, parameter_name)
-			self.delta_tm1[parameter_name] = torch.zeros(parameter.shape, device=self.device)
-			self.state_tm1[parameter_name] = None
+		shape = (np.sum([np.prod(param.shape) for param in self.local_module._parameters.values()]), 1)
+		self.f_tm1 = torch.ones(shape, device=self.device)
+		self.i_tm1 = torch.zeros(shape, device=self.device)
+		self.theta_tm1 = self.theta_0.clone()
+		self.delta_tm1 = torch.zeros(shape, device=self.device)
+		self.state_tm1 = None
 
 	def initialize_params(self):
-		for parameter_name in self.local_module._parameters:
-			self.local_module._parameters[parameter_name] = getattr(self.theta_0, parameter_name)
+		shapes = [param.shape for param in self.local_module._parameters.values()]
+		parameters = self.theta_0.split([np.prod(shape) for shape in shapes])
+		for parameter_index, parameter_name in enumerate(self.local_module._parameters):
+			self.local_module._parameters[parameter_name] = parameters[parameter_index].view(shapes[parameter_index])
 
 	def preprocess(self, x):
 		return torch.cat([self.preprocess_1(x).view(x.shape + (1,)), self.preprocess_2(x).view(x.shape + (1,))], dim=-1)
@@ -108,32 +101,34 @@ class LSTMOptimizer(nn.Module):
 		z[condition_2] = x_2
 		return z
 
-	def update_rule(self, grad_t, loss_t, parameter_name):
+	def update_rule(self, grad_t, loss_t):
 		batch_size = grad_t.shape[0]
-		f_tm1 = self.f_tm1[parameter_name].view(-1, 1)
-		i_tm1 = self.i_tm1[parameter_name].view(-1, 1)
-		theta_tm1 = self.theta_tm1[parameter_name].view(-1, 1)
-		delta_tm1 = self.delta_tm1[parameter_name].view(-1, 1)
-		state_tm1 = self.state_tm1[parameter_name]
 		preprocessed_grad_t = self.preprocess(grad_t.view(-1)).view(1, batch_size, -1)
 		preprocessed_loss_t = self.preprocess(loss_t.view(-1)).view(1, batch_size, -1)
-		if state_tm1 is None:
+		if self.state_tm1 is None:
 			output_t, state_t = self.lstm(torch.cat([preprocessed_grad_t, preprocessed_loss_t], dim=-1))
 		else:
-			output_t, state_t = self.lstm(torch.cat([preprocessed_grad_t, preprocessed_loss_t], dim=-1), state_tm1)
-		f_t = self.activation(self.W_theta(torch.cat([output_t.view(batch_size, -1), theta_tm1, f_tm1], dim=-1)))
-		i_t = self.activation(self.W_grad(torch.cat([output_t.view(batch_size, -1), theta_tm1, i_tm1], dim=-1)))
-		delta_t = self.momentum * delta_tm1 - i_t * grad_t
-		theta_t = f_t * theta_tm1 + delta_t
-		self.f_tm1[parameter_name] = f_t.view(self.local_module._parameters[parameter_name].shape)
-		self.i_tm1[parameter_name] = i_t.view(self.local_module._parameters[parameter_name].shape)
-		self.theta_tm1[parameter_name] = theta_t.view(self.local_module._parameters[parameter_name].shape)
-		self.delta_tm1[parameter_name] = delta_t.view(self.local_module._parameters[parameter_name].shape)
-		self.state_tm1[parameter_name] = state_t
+			output_t, state_t = self.lstm(torch.cat([preprocessed_grad_t, preprocessed_loss_t], dim=-1), self.state_tm1)
+		f_t = self.activation(self.W_theta(torch.cat([output_t.view(batch_size, -1), self.theta_tm1, self.f_tm1], dim=-1)))
+		i_t = self.activation(self.W_grad(torch.cat([output_t.view(batch_size, -1), self.theta_tm1, self.i_tm1], dim=-1)))
+		delta_t = self.momentum * self.delta_tm1 - i_t * grad_t
+		theta_t = f_t * self.theta_tm1 + delta_t
+		self.f_tm1 = f_t
+		self.i_tm1 = i_t
+		self.theta_tm1 = theta_t
+		self.delta_tm1 = delta_t
+		self.state_tm1 = state_t
 		return theta_t
 
 	def forward(self, module_with_grads, loss_t):
+		shapes = []
+		gradients = []
 		for parameter_name in module_with_grads._parameters:
 			parameter = module_with_grads._parameters[parameter_name]
-			grad_t = parameter.grad.clone().detach().view(-1, 1)
-			self.local_module._parameters[parameter_name] = self.update_rule(grad_t, grad_t.new_full(grad_t.shape, loss_t.item()), parameter_name).view(parameter.shape)
+			shapes.append(parameter.shape)
+			gradients.append(parameter.grad.clone().detach().view(-1, 1))
+		grad_t = torch.cat(gradients, dim=0)
+		param_t = self.update_rule(grad_t, grad_t.new_full(grad_t.shape, loss_t.item()))
+		parameters = param_t.split([np.prod(shape) for shape in shapes])
+		for parameter_index, parameter_name in enumerate(module_with_grads._parameters):
+			self.local_module._parameters[parameter_name] = parameters[parameter_index].view(shapes[parameter_index])
