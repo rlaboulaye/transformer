@@ -1,7 +1,7 @@
 from torch import nn
 
-from local_model import LocalModel
-from lstm_optimizer import LSTMOptimizer
+from .local_model import LocalModel
+from .lstm_optimizer import LSTMOptimizer
 
 
 class StackedOptimizer(nn.Module):

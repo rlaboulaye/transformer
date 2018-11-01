@@ -2,8 +2,6 @@ import numpy as np
 import torch
 from torch import nn
 
-from local_model import LocalModel
-
 
 class LSTMOptimizer(nn.Module):
 
