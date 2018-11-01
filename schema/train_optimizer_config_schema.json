@@ -1,9 +1,9 @@
 {
     "$schema": "http://json-schema.org/draft-04/schema",
     "definitions": {
-        "task_directory_path": {
+        "train_config_path": {
             "type": "string",
-            "description": "The path to a directory containing task description json files"
+            "description": "The path to the config file for training the base model"
         },
         "keep_coef_init": {
             "type": "number",
@@ -27,8 +27,8 @@
         }
     },
     "properties": {
-        "task_directory_path": {
-            "$ref": "#/definitions/task_directory_path"
+        "train_config_path": {
+            "$ref": "#/definitions/train_config_path"
         },
         "keep_coef_init": {
             "$ref": "#/definitions/keep_coef_init"
@@ -47,7 +47,7 @@
         }
     },
     "required": [
-        "task_directory_path",
+        "train_config_path",
         "keep_coef_init",
         "lr_init",
         "meta_lr",

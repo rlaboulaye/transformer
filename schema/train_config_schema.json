@@ -211,6 +211,7 @@
         "seed",
         "n_iter",
         "scores_per_epoch",
+        "test_split",
         "validation_split",
         "batch_size",
         "n_embd",
