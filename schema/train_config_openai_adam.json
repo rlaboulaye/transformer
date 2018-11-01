@@ -1,6 +1,5 @@
 {
     "$schema": "schema/train_config_schema.json",
-    "task_path": "schema/global_warming_task.json",
     "encoder_path": "model_params/encoder_bpe_40000.json",
     "bpe_path": "model_params/vocab_40000.bpe",
     "afn": "gelu",

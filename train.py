@@ -175,6 +175,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--verbose', action='store_true')
 	parser.add_argument('--config_path', type=str, default='schema/train_config.json')
+	parser.add_argument('--task_path', type=str)
 
 	args = parser.parse_args()
 
@@ -187,7 +188,7 @@ if __name__ == '__main__':
 		config = json.load(config_file)
 	validate_against_schema(config, schema_path='schema/train_config_schema.json')
 
-	task_path = config['task_path']
+	task_path = args.task_path
 	with open(task_path, 'r') as task_file:
 		task = json.load(task_file)
 	validate_against_schema(task, schema_path='schema/task_schema.json')
@@ -250,7 +251,7 @@ if __name__ == '__main__':
 
 	dh_model.to(device)
 
-	task_file_name = os.path.basename(config['task_path'])
+	task_file_name = os.path.basename(args.task_path)
 	task_name = os.path.join(os.path.splitext(task_file_name)[0],
 							'{}tr__{}val__{}te'.format(train_dataloader.dataset.instances.shape[0],
 												validation_dataloader.dataset.instances.shape[0],

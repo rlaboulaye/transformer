@@ -1,10 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-04/schema",
     "definitions": {
-        "task_path": {
-            "type": "string",
-            "description": "The path to a task description json file"
-        },
         "encoder_path": {
             "type": "string",
             "description": "The path to a byte pair encoding encoder json file"
@@ -125,9 +121,6 @@
         }
     },
     "properties": {
-        "task_path": {
-            "$ref": "#/definitions/task_path"
-        },
         "encoder_path": {
             "$ref": "#/definitions/encoder_path"
         },
@@ -211,7 +204,6 @@
         }
     },
     "required": [
-        "task_path",
         "encoder_path",
         "bpe_path",
         "afn",
