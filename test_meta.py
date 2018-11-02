@@ -18,16 +18,10 @@ def train_network(train_set, test_set, num_classes, loss_function, optimizer, me
     optimizer.initialize_params(mlp, learn_initialization)
     optimizer.reset_state(learn_initialization)
 
-    #
     # optimizer = Adam(mlp.parameters(), lr=.001)
     # optimizer = SGD(mlp.parameters(), lr=.05)
-    #
 
     for epoch in range(epochs):
-        ##
-        loss_sum = 0
-        previous_loss = torch.zeros(1, device=device)
-        ##
         losses = []
         for batch in train_set:
             x = batch[:,:-1]
@@ -41,20 +35,9 @@ def train_network(train_set, test_set, num_classes, loss_function, optimizer, me
             # optimizer.step()
             tuned_mlp = optimizer(mlp, loss)
             losses.append(loss)
-            ##
-            # y_hat = tuned_mlp(x).view(-1)
-            # loss = loss_function(y_hat, y).sqrt()
-            # loss_sum += (loss - previous_loss.detach())
-            # previous_loss = loss.data
-            ##
         losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
         loss = losses.mean(-1)
         print('Epoch {} Train Loss: {}'.format(epoch, loss.cpu().item()))
-        ##
-        # meta_optimizer.zero_grad()
-        # loss_sum.backward(retain_graph=True)
-        # meta_optimizer.step()
-        ##
     mlp = tuned_mlp
     losses = []
     for batch in test_set:
