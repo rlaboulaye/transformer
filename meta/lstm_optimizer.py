@@ -56,13 +56,16 @@ class LSTMOptimizer(nn.Module):
 			self.state_tm1 = (self.state_tm1[0].to(device), self.state_tm1[1].to(device))
 		return self
 
-	def reset_state(self):
+	def reset_state(self, learn_initialization=True):
 		shape = (np.sum([np.prod(param.shape) for param in self.local_module._parameters.values()]), 1)
 		self.f_tm1 = torch.ones(shape, device=self.device)
 		self.i_tm1 = torch.zeros(shape, device=self.device)
-		self.theta_tm1 = self.theta_0.clone()
 		self.delta_tm1 = torch.zeros(shape, device=self.device)
 		self.state_tm1 = None
+		if learn_initialization:
+			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values()], dim=0)
+		else:
+			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values()], dim=0).clone().detach()
 
 	def initialize_params(self):
 		shapes = [param.shape for param in self.local_module._parameters.values()]

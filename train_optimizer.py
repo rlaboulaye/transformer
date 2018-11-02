@@ -78,4 +78,8 @@ if __name__ == '__main__':
         task_type = task['task_type']
         train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose)
 
+        for batch in train_dataloader:
+            continue
+        for batch in test_dataloader:
+            continue
         #

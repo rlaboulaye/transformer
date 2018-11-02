@@ -22,14 +22,17 @@ class StackedOptimizer(nn.Module):
 		for module in modules:
 			self.optimizers.append(LSTMOptimizer(module, hidden_size, num_layers, momentum))
 
-	def reset_state(self):
+	def reset_state(self, learn_initialization=True):
 		for optimizer in self.optimizers:
-			optimizer.reset_state()
+			optimizer.reset_state(learn_initialization)
 
-	def initialize_params(self, model):
-		for optimizer in self.optimizers:
-			optimizer.initialize_params()
-		self.local_model.copy_params_to(model)
+	def initialize_params(self, model, learn_initialization=True):
+		if learn_initialization:
+			for optimizer in self.optimizers:
+				optimizer.initialize_params()
+			self.local_model.copy_params_to(model)
+		else:
+			self.local_model.copy_params_from(model)
 
 	def forward(self, model_with_grads, loss):
 		loss_t = loss.clone().detach().view(-1, 1)
