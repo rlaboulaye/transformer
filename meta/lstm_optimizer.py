@@ -29,7 +29,7 @@ class LSTMOptimizer(nn.Module):
 		self.W_grad = nn.Linear(input_dim, 1, bias=True)
 		self.initialize_optimizer_params()
 
-		shapes = [param.shape for param in self.local_module._parameters.values()]
+		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
 		input_and_output_size = np.max([np.sum(shape) for shape in shapes])
 		shape = (np.sum([np.prod(shape) for shape in shapes]), 1)
 		self.theta_0 = nn.Parameter(torch.zeros(shape, device=self.device).normal_(0, np.sqrt(2. / input_and_output_size)))
@@ -57,20 +57,20 @@ class LSTMOptimizer(nn.Module):
 		return self
 
 	def reset_state(self, learn_initialization=True):
-		shape = (np.sum([np.prod(param.shape) for param in self.local_module._parameters.values()]), 1)
+		shape = (np.sum([np.prod(param.shape) for param in self.local_module._parameters.values() if param is not None]), 1)
 		self.f_tm1 = torch.ones(shape, device=self.device)
 		self.i_tm1 = torch.zeros(shape, device=self.device)
 		self.delta_tm1 = torch.zeros(shape, device=self.device)
 		self.state_tm1 = None
 		if learn_initialization:
-			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values()], dim=0)
+			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values() if param is not None], dim=0)
 		else:
-			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values()], dim=0).clone().detach()
+			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values() if param is not None], dim=0).clone().detach()
 
 	def initialize_params(self):
-		shapes = [param.shape for param in self.local_module._parameters.values()]
+		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
 		parameters = self.theta_0.split([np.prod(shape) for shape in shapes])
-		for parameter_index, parameter_name in enumerate(self.local_module._parameters):
+		for parameter_index, parameter_name in enumerate([parameter_name for parameter_name in self.local_module._parameters if self.local_module._parameters[parameter_name] is not None]):
 			self.local_module._parameters[parameter_name] = parameters[parameter_index].view(shapes[parameter_index])
 
 	def preprocess(self, x):
@@ -124,7 +124,7 @@ class LSTMOptimizer(nn.Module):
 	def forward(self, module_with_grads, loss_t):
 		shapes = []
 		gradients = []
-		for parameter_name in module_with_grads._parameters:
+		for parameter_name in [parameter_name for parameter_name in module_with_grads._parameters if module_with_grads._parameters[parameter_name] is not None]:
 			parameter = module_with_grads._parameters[parameter_name]
 			shapes.append(parameter.shape)
 			gradients.append(parameter.grad.clone().detach().view(-1, 1))

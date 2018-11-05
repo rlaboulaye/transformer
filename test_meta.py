@@ -14,7 +14,7 @@ def train_network(train_set, test_set, num_classes, loss_function, optimizer, me
     mlp = MLP(X_Y.shape[-1] - 1, num_classes, 32)
     mlp.to(device)
 
-    learn_initialization = True
+    learn_initialization = False
     optimizer.initialize_params(mlp, learn_initialization)
     optimizer.reset_state(learn_initialization)
 
@@ -58,7 +58,7 @@ def train_network(train_set, test_set, num_classes, loss_function, optimizer, me
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 meta_epochs = 500
-epochs = 5
+epochs = 3
 
 batch_size = 4
 train_test_split = .08
