@@ -27,12 +27,17 @@ class StackedOptimizer(nn.Module):
 			optimizer.reset_state(learn_initialization)
 
 	def initialize_params(self, model, learn_initialization=True):
+		#
+		self.local_model = LocalModel(model)
+		modules = [module for module in self.local_model.model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
+		for module_index, module in enumerate(modules):
+			optimizer = self.optimizers[module_index]
+			optimizer.set_module(modules[module_index])
+		#
 		if learn_initialization:
 			for optimizer in self.optimizers:
 				optimizer.initialize_params()
 			self.local_model.copy_params_to(model)
-		else:
-			self.local_model.copy_params_from(model)
 
 	def forward(self, model_with_grads, loss):
 		loss_t = loss.clone().detach().view(-1, 1)

@@ -1,7 +1,10 @@
+import copy
+
+
 class LocalModel(object):
 
 	def __init__(self, model):
-		self.model = model
+		self.model = copy.deepcopy(model)
 
 	def copy_params_from(self, model):
 		for local_params, params in zip(self.model.parameters(), model.parameters()):

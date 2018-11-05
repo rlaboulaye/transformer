@@ -8,8 +8,8 @@ class LSTMOptimizer(nn.Module):
 	def __init__(self, module, hidden_size=20, num_layers=1, momentum=0):
 		super(LSTMOptimizer, self).__init__()
 
+		self.set_module(module)
 		self.device = 'cpu'
-		self.local_module = module
 		self.momentum = momentum
 
 		self.p = 10
@@ -35,6 +35,9 @@ class LSTMOptimizer(nn.Module):
 		self.theta_0 = nn.Parameter(torch.zeros(shape, device=self.device).normal_(0, np.sqrt(2. / input_and_output_size)))
 
 		self.reset_state()
+
+	def set_module(self, module):
+		self.local_module = module
 
 	def initialize_optimizer_params(self, window=.01):
 		for param in self.lstm.parameters():
