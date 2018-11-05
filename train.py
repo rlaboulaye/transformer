@@ -110,7 +110,7 @@ def test(test_dataloader, model, lm_criterion, task_criterion, logger, config):
 	verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
 
 def load_openai_pretrained_model(model, n_ctx=-1, n_special=-1, n_transfer=12, n_embd=768, path='./model_params/',
-		path_names='./'):
+		path_names='./', verbose=True):
 	import re
 	# Load weights from TF model
 	verbose_print(verbose, "Loading weights...")
@@ -207,7 +207,7 @@ if __name__ == '__main__':
 	dh_model = DoubleHeadModel(config, text_encoder.classify_token, task, vocab_size, sequence_dim)
 
 	#
-	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
+	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3, verbose=verbose)
 	# torch.save(dh_model.state_dict(), 'weights.pth')
 	# dh_model = DoubleHeadModel(config, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
 	# verbose_print('Loading Weights')
