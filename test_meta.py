@@ -14,7 +14,7 @@ def train_network(train_set, test_set, num_classes, loss_function, optimizer, me
     mlp = MLP(X_Y.shape[-1] - 1, num_classes, 32)
     mlp.to(device)
 
-    optimizer.initialize_params(mlp)
+    optimizer.initialize_params(mlp, learn_initialization_indices)
     optimizer.reset_state()
 
     # optimizer = Adam(mlp.parameters(), lr=.001)
@@ -74,7 +74,8 @@ loss_function = CrossEntropyLoss()
 
 mlp = MLP(X_Y.shape[-1] - 1, num_classes, 32)
 
-optimizer = StackedOptimizer(mlp)
+learn_initialization_indices = [0,1]
+optimizer = StackedOptimizer(mlp, learn_initialization_indices=learn_initialization_indices)
 optimizer.to(device)
 meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 
