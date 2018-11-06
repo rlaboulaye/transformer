@@ -14,9 +14,8 @@ def train_network(train_set, test_set, num_classes, loss_function, optimizer, me
     mlp = MLP(X_Y.shape[-1] - 1, num_classes, 32)
     mlp.to(device)
 
-    learn_initialization = False
-    optimizer.initialize_params(mlp, learn_initialization)
-    optimizer.reset_state(learn_initialization)
+    optimizer.initialize_params(mlp)
+    optimizer.reset_state()
 
     # optimizer = Adam(mlp.parameters(), lr=.001)
     # optimizer = SGD(mlp.parameters(), lr=.05)

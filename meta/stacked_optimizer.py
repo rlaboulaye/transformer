@@ -11,6 +11,13 @@ class StackedOptimizer(nn.Module):
 		self.local_model = LocalModel(model)
 		self.initialize_optimizers(hidden_size, num_layers, momentum)
 
+	def set_model(self, model):
+		self.local_model = LocalModel(model)
+		modules = [module for module in self.local_model.model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
+		for module_index, module in enumerate(modules):
+			optimizer = self.optimizers[module_index]
+			optimizer.set_module(modules[module_index])
+
 	def to(self, device):
 		super(StackedOptimizer, self).to(device)
 		for optimizer in self.optimizers:
@@ -19,25 +26,19 @@ class StackedOptimizer(nn.Module):
 	def initialize_optimizers(self, hidden_size, num_layers, momentum):
 		self.optimizers = nn.ModuleList()
 		modules = [module for module in self.local_model.model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
-		for module in modules:
-			self.optimizers.append(LSTMOptimizer(module, hidden_size, num_layers, momentum))
-
-	def reset_state(self, learn_initialization=True):
-		for optimizer in self.optimizers:
-			optimizer.reset_state(learn_initialization)
-
-	def initialize_params(self, model, learn_initialization=True):
-		#
-		self.local_model = LocalModel(model)
-		modules = [module for module in self.local_model.model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
 		for module_index, module in enumerate(modules):
-			optimizer = self.optimizers[module_index]
-			optimizer.set_module(modules[module_index])
-		#
-		if learn_initialization:
-			for optimizer in self.optimizers:
-				optimizer.initialize_params()
-			self.local_model.copy_params_to(model)
+			learn_initialization = module_index != len(modules) - 1
+			self.optimizers.append(LSTMOptimizer(module, hidden_size, num_layers, momentum, learn_initialization=learn_initialization))
+
+	def reset_state(self):
+		for optimizer in self.optimizers:
+			optimizer.reset_state()
+
+	def initialize_params(self, model):
+		self.set_model(model)
+		for optimizer in self.optimizers[:-1]:
+			optimizer.initialize_params()
+		self.local_model.copy_params_to(model)
 
 	def forward(self, model_with_grads, loss):
 		loss_t = loss.clone().detach().view(-1, 1)

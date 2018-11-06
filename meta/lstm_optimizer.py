@@ -5,10 +5,10 @@ from torch import nn
 
 class LSTMOptimizer(nn.Module):
 
-	def __init__(self, module, hidden_size=20, num_layers=1, momentum=0):
+	def __init__(self, module, hidden_size=20, num_layers=1, momentum=0, learn_initialization=True):
 		super(LSTMOptimizer, self).__init__()
 
-		self.set_module(module)
+		self.learn_initialization = learn_initialization
 		self.device = 'cpu'
 		self.momentum = momentum
 
@@ -29,15 +29,19 @@ class LSTMOptimizer(nn.Module):
 		self.W_grad = nn.Linear(input_dim, 1, bias=True)
 		self.initialize_optimizer_params()
 
-		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
-		input_and_output_size = np.max([np.sum(shape) for shape in shapes])
-		shape = (np.sum([np.prod(shape) for shape in shapes]), 1)
-		self.theta_0 = nn.Parameter(torch.zeros(shape, device=self.device).normal_(0, np.sqrt(2. / input_and_output_size)))
-
+		self.set_module(module)
+		if self.learn_initialization:
+			self.initialize_theta_0()
 		self.reset_state()
 
 	def set_module(self, module):
 		self.local_module = module
+
+	def initialize_theta_0(self):
+		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
+		input_and_output_size = np.max([np.sum(shape) for shape in shapes])
+		shape = (np.sum([np.prod(shape) for shape in shapes]), 1)
+		self.theta_0 = nn.Parameter(torch.zeros(shape, device=self.device).normal_(0, np.sqrt(2. / input_and_output_size)))
 
 	def initialize_optimizer_params(self, window=.01):
 		for param in self.lstm.parameters():
@@ -50,22 +54,23 @@ class LSTMOptimizer(nn.Module):
 	def to(self, device):
 		self.device = device
 		super(LSTMOptimizer, self).to(device)
-		self.theta_0 = self.theta_0.to(device)
 		self.f_tm1 = self.f_tm1.to(device)
 		self.i_tm1 = self.i_tm1.to(device)
 		self.theta_tm1 = self.theta_tm1.to(device)
 		self.delta_tm1 = self.delta_tm1.to(device)
 		if self.state_tm1 is not None:
 			self.state_tm1 = (self.state_tm1[0].to(device), self.state_tm1[1].to(device))
+		if self.learn_initialization:
+			self.theta_0 = self.theta_0.to(device)
 		return self
 
-	def reset_state(self, learn_initialization=True):
+	def reset_state(self):
 		shape = (np.sum([np.prod(param.shape) for param in self.local_module._parameters.values() if param is not None]), 1)
 		self.f_tm1 = torch.ones(shape, device=self.device)
 		self.i_tm1 = torch.zeros(shape, device=self.device)
 		self.delta_tm1 = torch.zeros(shape, device=self.device)
 		self.state_tm1 = None
-		if learn_initialization:
+		if self.learn_initialization:
 			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values() if param is not None], dim=0)
 		else:
 			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values() if param is not None], dim=0).clone().detach()
