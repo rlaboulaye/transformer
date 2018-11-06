@@ -1,0 +1,26 @@
+{
+	"$schema": "task_schema.json",
+	"task_type": "DocumentSimilarity",
+	"train_file": {
+		"file_path": "/users/data/metanlp/nlp_datasets/related_sentences/sentence_pairs_similarity.csv",
+		"file_type": "csv",
+		"file_header": true
+	},
+	"document_list"	: [
+		{
+			"column_indices": [
+				0
+			]
+		},
+		{
+			"column_indices": [
+				1
+			]
+		}
+	],
+	"target": {
+		"column_indices": [
+			2
+		]
+	}
+}

@@ -5,15 +5,15 @@ from torch.utils import data
 
 class Dataset(data.Dataset):
 
-	def __init__(self, device, task_type, vocab_size, instances, masks, targets=None):
+	def __init__(self, device, target_type, vocab_size, instances, masks, targets=None):
 		self.device = device
-		self.task_type = task_type
+		self.task_type = target_type
 		self.instances = instances
 		self.masks = masks
 		self.targets = targets
 		self.sequence_dim = self.instances.shape[-1]
 		self.X_positions = np.arange(vocab_size, vocab_size + self.sequence_dim)
-		if task_type == "DocumentSimilarity":
+		if target_type == "regression":
 			self.target_dtype = torch.float32
 		else:
 			self.target_dtype = torch.int64

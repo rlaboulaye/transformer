@@ -2,7 +2,7 @@
 	"$schema": "task_schema.json",
 	"task_type": "Sentiment",
 	"train_file": {
-		"file_path": "/users/data/metanlp/nlp_datasets/airline_twitter_sentiment/airline_twitter_sentiment.csv",
+		"file_path": "/users/data/metanlp/nlp_datasets/airline_twitter_sentiment/airline_sampled_datasets/airline_sampled_1_of_48.csv",
 		"file_type": "csv",
 		"file_header": true
 	},
@@ -15,7 +15,7 @@
 	},
 	"target": {
 		"column_index": 2,
-		"target_type": "regression",
-		"num_classes": 1
+		"target_type": "classification",
+		"num_classes": 3
 	}
 }

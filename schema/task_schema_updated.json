@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema",
+  "title": "BYU Transformer input",
+  "description": "Defines the input to the transformer",
+  "type": "object",
+  "definitions": {
+    "file": {
+      "$id": "#file",
+      "type": "object",
+      "properties": {
+        "file_path": {
+          "type": "string"
+        },
+        "file_type": {
+          "type": "string",
+          "enum": ["csv", "tsv"]
+        },
+        "file_header": {
+          "type": "boolean"
+        }
+      },
+      "required": ["file_path", "file_type", "file_header"]
+    },
+    "document": {
+      "$id": "#document",
+      "type": "object",
+      "properties": {
+        "column_indices": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["column_indices"]
+    }
+  },
+  "properties": {
+    "source": {
+      "description": "Origin of the dataset",
+      "type": "string"
+    },
+    "task_type": {
+      "description": "The type of problem",
+      "type": "string",
+      "enum": ["Sentiment", "Topic", "Entailment", "Comparison", "MultipleChoiceQuestion"]
+    },
+    "train_file": {
+      "description": "The main file containing training data",
+      "$ref": "#definitions/file"
+    },
+    "test_file": {
+      "description": "A secondary file containing test data",
+      "$ref": "#definitions/file"
+    },
+    "documents": {
+      "description": "Valid structures include: one, one-to-one, and one-to-many",
+      "type": "object",
+      "properties": {
+        "primary_document": {
+          "type": "object",
+          "$ref": "#definitions/document"
+        },
+        "associated_documents": {
+          "type": "array",
+          "items": {
+            "$ref": "#definitions/document"
+          },
+          "minItems": 1
+        }
+      },
+      "required": ["primary_document"]
+    },
+    "target": {
+      "description": "Information about the targets",
+      "type": "object",
+      "properties": {
+        "column_index": {
+          "type": "integer"
+        },
+        "target_type": {
+          "type": "string",
+          "enum": ["classification", "regression"]
+        },
+        "num_classes": {
+          "type": "integer"
+        }
+      },
+      "required": ["column_index", "target_type", "num_classes"]
+    }
+  },
+  "required": ["task_type", "train_file", "documents", "target"]
+}

@@ -1,18 +1,17 @@
 from torch import nn
 
 
-class ClassificationHead(nn.Module):
-    """Classification Head for the transformer
+class TaskHead(nn.Module):
+    """Classification Head for the transformer"""
 
-    TODO: test this class."""
-    def __init__(self, clf_token, cfg, n_class):
-        super(ClassificationHead, self).__init__()
+    def __init__(self, clf_token, cfg, n_output):
+        super(TaskHead, self).__init__()
         self.n_embd = cfg.n_embd
         self.clf_token = clf_token
-        self.dropout = nn.Dropout(cfg.clf_pdrop)
-        self.linear = nn.Linear(cfg.n_embd, n_class)
+        self.dropout = nn.Dropout2d(cfg.clf_pdrop)
+        self.linear = nn.Linear(cfg.n_embd, n_output)
 
-        nn.init.normal_(self.linear.weight, std = 0.02)
+        nn.init.normal_(self.linear.weight, std=0.02)
         nn.init.normal_(self.linear.bias, 0)
 
     def forward(self, h, x):

@@ -15,266 +15,272 @@ from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
 from opt import OpenAIAdam
-from loss import compute_double_head_loss, compute_accuracy
+from loss import compute_double_head_loss, compute_accuracy, Evaluator
 
 
-def score(dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose):
-	losses = []
-	accuracies = []
-	with torch.no_grad():
-		model.eval()
-		for x, m, y in get_iterator(dataloader, verbose):
-			lm_logits, task_logits = model(x)
-			double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, lm_coef, task_coef)
-			accuracy = compute_accuracy(y, task_logits)
-			losses.extend([double_head_loss.cpu().item()] * x.shape[0])
-			accuracies.extend([accuracy.cpu().item()] * x.shape[0])
-	return np.mean(losses), np.mean(accuracies)
+def score(dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose, evaluator):
+    losses = []
+    accuracies = []
+    with torch.no_grad():
+        model.eval()
+        for x, m, y in get_iterator(dataloader, verbose):
+            lm_logits, task_logits = model(x)
+            # double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, lm_coef, task_coef)
+            # accuracy = compute_accuracy(y, task_logits)
+            double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
+            accuracy = evaluator.compute_score(y, task_logits)
+            losses.extend([double_head_loss.cpu().item()] * x.shape[0])
+            accuracies.extend([accuracy.cpu().item()] * x.shape[0])
+    return np.mean(losses), np.mean(accuracies)
 
-def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, optimizer, scores_per_epoch, verbose):
-	train_losses = []
-	train_accuracies = []
-	validation_losses = []
-	validation_accuracies = []
+def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, optimizer, scores_per_epoch, verbose, evaluator):
+    train_losses = []
+    train_accuracies = []
+    validation_losses = []
+    validation_accuracies = []
 
-	model.train()
-	n_updates = 0
-	for x, m, y in get_iterator(train_dataloader, verbose):
-		lm_logits, task_logits = model(x)
-		double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, lm_coef, task_coef)
-		double_head_loss.backward()
-		optimizer.step()
-		optimizer.zero_grad()
+    model.train()
+    n_updates = 0
+    for x, m, y in get_iterator(train_dataloader, verbose):
+        lm_logits, task_logits = model(x)
+        # double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, lm_coef, task_coef)
+        double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
+        double_head_loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
 
-		if (n_updates > 0 and n_updates % math.ceil(float(len(train_dataloader)) / float(scores_per_epoch)) == 0) or n_updates == len(train_dataloader):
-			train_loss, train_accuracy = score(train_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose)
-			validation_loss, validation_accuracy = score(validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose)
-			train_losses.append(train_loss)
-			train_accuracies.append(train_accuracy)
-			validation_losses.append(validation_loss)
-			validation_accuracies.append(validation_accuracy)
-		n_updates += 1
+        n_updates += 1
+        if n_updates % math.ceil(float(len(train_dataloader)) / float(scores_per_epoch)) == 0 or n_updates == len(train_dataloader):
+            train_loss, train_accuracy = score(train_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose, evaluator=evaluator)
+            validation_loss, validation_accuracy = score(validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose, evaluator=evaluator)
+            train_losses.append(train_loss)
+            train_accuracies.append(train_accuracy)
+            validation_losses.append(validation_loss)
+            validation_accuracies.append(validation_accuracy)
+        n_updates += 1
 
-	return train_losses, train_accuracies, validation_losses, validation_accuracies
+    return train_losses, train_accuracies, validation_losses, validation_accuracies
 
-def train(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, model_opt, logger, args):
-	
-	min_loss = float('inf')
-	weight_directory = os.path.join('weights', logger.task_name)
-	if not os.path.exists(weight_directory):
-		os.makedirs(weight_directory)
-	transformer_path = os.path.join(weight_directory, 'transformer.pth')
-	lm_head_path = os.path.join(weight_directory, 'lm_head.pth')
-	task_head_path = os.path.join(weight_directory, 'task_head.pth')
+def train(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, model_opt, logger, args, evaluator):
 
-	for epoch in range(args.n_iter):
+    min_loss = float('inf')
+    weight_directory = os.path.join('weights', logger.task_name)
+    if not os.path.exists(weight_directory):
+        os.makedirs(weight_directory)
+    transformer_path = os.path.join(weight_directory, 'transformer.pth')
+    lm_head_path = os.path.join(weight_directory, 'lm_head.pth')
+    task_head_path = os.path.join(weight_directory, 'task_head.pth')
 
-		verbose_print(verbose, 'Running epoch {}'.format(epoch))
-		
-		train_losses, train_accuracies, validation_losses, validation_accuracies = run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., model_opt, logger.results['scores_per_epoch'], verbose)
-		logger.results['train_losses'].extend(train_losses)
-		logger.results['train_accuracies'].extend(train_accuracies)
-		logger.results['validation_losses'].extend(validation_losses)
-		logger.results['validation_accuracies'].extend(validation_accuracies)
+    for epoch in range(args.n_iter):
 
-		logger.log()
-		logger.plot()
+        verbose_print(verbose, 'Running epoch {}'.format(epoch))
 
-		verbose_print(verbose, 'Train Loss: {}'.format(train_losses))
-		verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracies))
-		verbose_print(verbose, 'Validation Loss: {}'.format(validation_losses))
-		verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracies))
+        train_losses, train_accuracies, validation_losses, validation_accuracies = run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., model_opt, logger.results['scores_per_epoch'], verbose, evaluator)
+        logger.results['train_losses'].extend(train_losses)
+        logger.results['train_accuracies'].extend(train_accuracies)
+        logger.results['validation_losses'].extend(validation_losses)
+        logger.results['validation_accuracies'].extend(validation_accuracies)
 
-		new_loss = np.mean(validation_losses)
-		if new_loss < min_loss:
-			min_loss = np.mean(validation_losses)
-			torch.save(model.transformer.state_dict(), transformer_path)
-			torch.save(model.lm_head.state_dict(), lm_head_path)
-			torch.save(model.task_head.state_dict(), task_head_path)
+        logger.log()
+        logger.plot()
 
-	if min_loss != new_loss:
-		model.transformer.load_state_dict(torch.load(transformer_path))
-		model.lm_head.load_state_dict(torch.load(lm_head_path))
-		model.task_head.load_state_dict(torch.load(task_head_path))
+        verbose_print(verbose, 'Train Loss: {}'.format(train_losses))
+        verbose_print(verbose, 'Train Accuracy: {}'.format(train_accuracies))
+        verbose_print(verbose, 'Validation Loss: {}'.format(validation_losses))
+        verbose_print(verbose, 'Validation Accuracy: {}'.format(validation_accuracies))
 
-def test(test_dataloader, model, lm_criterion, task_criterion, logger, args):
+        new_loss = np.mean(validation_losses)
+        if new_loss < min_loss:
+            min_loss = np.mean(validation_losses)
+            torch.save(model.transformer.state_dict(), transformer_path)
+            torch.save(model.lm_head.state_dict(), lm_head_path)
+            torch.save(model.task_head.state_dict(), task_head_path)
 
-	verbose_print(verbose, 'Testing')
+    if min_loss != new_loss:
+        model.transformer.load_state_dict(torch.load(transformer_path))
+        model.lm_head.load_state_dict(torch.load(lm_head_path))
+        model.task_head.load_state_dict(torch.load(task_head_path))
 
-	test_loss, test_accuracy = score(test_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., verbose)
-	logger.results['test_loss'] = test_loss
-	logger.results['test_accuracy'] = test_accuracy
-	logger.log()
+def test(test_dataloader, model, lm_criterion, task_criterion, logger, args, evaluator):
 
-	verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
-	verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
+    verbose_print(verbose, 'Testing')
+
+    test_loss, test_accuracy = score(test_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., verbose, evaluator)
+    logger.results['test_loss'] = test_loss
+    logger.results['test_accuracy'] = test_accuracy
+    logger.log()
+
+    verbose_print(verbose, 'Test Loss: {}'.format(test_loss))
+    verbose_print(verbose, 'Test Accuracy: {}'.format(test_accuracy))
 
 def load_openai_pretrained_model(model, n_ctx=-1, n_special=-1, n_transfer=12, n_embd=768, path='./model_params/',
-		path_names='./'):
-	import re
-	# Load weights from TF model
-	verbose_print(verbose, "Loading weights...")
-	names = json.load(open(path_names + 'parameters_names.json'))
-	shapes = json.load(open(path + 'params_shapes.json'))
-	offsets = np.cumsum([np.prod(shape) for shape in shapes])
-	init_params = [np.load(path + 'params_{}.npy'.format(n)) for n in range(10)]
-	init_params = np.split(np.concatenate(init_params, 0), offsets)[:-1]
-	init_params = [param.reshape(shape) for param, shape in zip(init_params, shapes)]
-	if n_ctx > 0:
-		init_params[0] = init_params[0][:n_ctx]
-	if n_special > 0:
-		init_params[0] = np.concatenate(
-			[init_params[1],
-			(np.random.randn(n_special, n_embd) * 0.02).astype(np.float32),
-			init_params[0]
-			], 0)
-	else:
-		init_params[0] = np.concatenate(
-			[init_params[1],
-			init_params[0]
-			], 0)
-	del init_params[1]
-	if n_transfer == -1:
-		n_transfer = 0
-	else:
-		n_transfer = 1 + n_transfer * 12
-	init_params = [arr.squeeze() for arr in init_params]
+        path_names='./'):
+    import re
+    # Load weights from TF model
+    verbose_print(verbose, "Loading weights...")
+    names = json.load(open(path_names + 'parameters_names.json'))
+    shapes = json.load(open(path + 'params_shapes.json'))
+    offsets = np.cumsum([np.prod(shape) for shape in shapes])
+    init_params = [np.load(path + 'params_{}.npy'.format(n)) for n in range(10)]
+    init_params = np.split(np.concatenate(init_params, 0), offsets)[:-1]
+    init_params = [param.reshape(shape) for param, shape in zip(init_params, shapes)]
+    if n_ctx > 0:
+        init_params[0] = init_params[0][:n_ctx]
+    if n_special > 0:
+        init_params[0] = np.concatenate(
+            [init_params[1],
+            (np.random.randn(n_special, n_embd) * 0.02).astype(np.float32),
+            init_params[0]
+            ], 0)
+    else:
+        init_params[0] = np.concatenate(
+            [init_params[1],
+            init_params[0]
+            ], 0)
+    del init_params[1]
+    if n_transfer == -1:
+        n_transfer = 0
+    else:
+        n_transfer = 1 + n_transfer * 12
+    init_params = [arr.squeeze() for arr in init_params]
 
-	try:
-		assert model.embed.weight.shape == init_params[0].shape
-	except AssertionError as e:
-		e.args += (model.embed.weight.shape, init_params[0].shape)
-		raise
+    try:
+        assert model.embed.weight.shape == init_params[0].shape
+    except AssertionError as e:
+        e.args += (model.embed.weight.shape, init_params[0].shape)
+        raise
 
-	model.embed.weight.data = torch.from_numpy(init_params[0])
+    model.embed.weight.data = torch.from_numpy(init_params[0])
 
-	for name, ip in zip(names[1:n_transfer], init_params[1:n_transfer]):
-		name = name[6:]  # skip "model/"
-		assert name[-2:] == ":0"
-		name = name[:-2]
-		name = name.split('/')
-		pointer = model
-		for m_name in name:
-			if re.fullmatch(r'[A-Za-z]+\d+', m_name):
-				l = re.split(r'(\d+)', m_name)
-			else:
-				l = [m_name]
-			pointer = getattr(pointer, l[0])
-			if len(l) >= 2:
-				num = int(l[1])
-				pointer = pointer[num]
-		try:
-			assert pointer.shape == ip.shape
-		except AssertionError as e:
-			e.args += (pointer.shape, ip.shape)
-			raise
-		pointer.data = torch.from_numpy(ip)
+    for name, ip in zip(names[1:n_transfer], init_params[1:n_transfer]):
+        name = name[6:]  # skip "model/"
+        assert name[-2:] == ":0"
+        name = name[:-2]
+        name = name.split('/')
+        pointer = model
+        for m_name in name:
+            if re.fullmatch(r'[A-Za-z]+\d+', m_name):
+                l = re.split(r'(\d+)', m_name)
+            else:
+                l = [m_name]
+            pointer = getattr(pointer, l[0])
+            if len(l) >= 2:
+                num = int(l[1])
+                pointer = pointer[num]
+        try:
+            assert pointer.shape == ip.shape
+        except AssertionError as e:
+            e.args += (pointer.shape, ip.shape)
+            raise
+        pointer.data = torch.from_numpy(ip)
 
 if __name__ == '__main__':
 
-	parser = argparse.ArgumentParser()
-	parser.add_argument('--verbose', action='store_true')
-	parser.add_argument('--seed', type=int, default=42)
-	parser.add_argument('--batch_size', type=int, default=8)
-	parser.add_argument('--n_iter', type=int, default=3)
-	parser.add_argument('--n_embd', type=int, default=768)
-	parser.add_argument('--n_head', type=int, default=12)
-	parser.add_argument('--n_layer', type=int, default=12)
-	parser.add_argument('--embd_pdrop', type=float, default=.1)
-	parser.add_argument('--attn_pdrop', type=float, default=.1)
-	parser.add_argument('--resid_pdrop', type=float, default=.1)
-	parser.add_argument('--clf_pdrop', type=float, default=.1)
-	parser.add_argument('--afn', type=str, choices=['relu', 'swish', 'gelu'], default='gelu')
-	parser.add_argument('--opt', type=str, choices=['adam', 'openai_adam'], default='adam')
-	parser.add_argument('--lm_coef', type=float, default=0.5)
-	parser.add_argument('--lr', type=float, default=6.25e-5)
-	parser.add_argument('--lr_schedule', type=str, default='warmup_linear')
-	parser.add_argument('--lr_warmup', type=float, default=0.002)
-	parser.add_argument('--b1', type=float, default=0.9)
-	parser.add_argument('--b2', type=float, default=0.999)
-	parser.add_argument('--eps', type=float, default=1e-8)
-	parser.add_argument('--l2', type=float, default=0.01)
-	parser.add_argument('--vector_l2', action='store_true')
-	parser.add_argument('--max_grad_norm', type=int, default=1)
-	parser.add_argument('--scores_per_epoch', type=int, default=3)
-	parser.add_argument('--sequence_dim', type=int, default=None)
-	parser.add_argument('--test_split', type=float, default=.2)
-	parser.add_argument('--validation_split', type=float, default=.2)
-	parser.add_argument('--encoder_path', type=str, default='model_params/encoder_bpe_40000.json')
-	parser.add_argument('--bpe_path', type=str, default='model_params/vocab_40000.bpe')
-	parser.add_argument('--task_path', type=str)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--n_iter', type=int, default=3)
+    parser.add_argument('--n_embd', type=int, default=768)
+    parser.add_argument('--n_head', type=int, default=12)
+    parser.add_argument('--n_layer', type=int, default=12)
+    parser.add_argument('--embd_pdrop', type=float, default=.1)
+    parser.add_argument('--attn_pdrop', type=float, default=.1)
+    parser.add_argument('--resid_pdrop', type=float, default=.1)
+    parser.add_argument('--clf_pdrop', type=float, default=.1)
+    parser.add_argument('--afn', type=str, choices=['relu', 'swish', 'gelu'], default='gelu')
+    parser.add_argument('--opt', type=str, choices=['adam', 'openai_adam'], default='adam')
+    parser.add_argument('--lm_coef', type=float, default=0.5)
+    parser.add_argument('--lr', type=float, default=6.25e-5)
+    parser.add_argument('--lr_schedule', type=str, default='warmup_linear')
+    parser.add_argument('--lr_warmup', type=float, default=0.002)
+    parser.add_argument('--b1', type=float, default=0.9)
+    parser.add_argument('--b2', type=float, default=0.999)
+    parser.add_argument('--eps', type=float, default=1e-8)
+    parser.add_argument('--l2', type=float, default=0.01)
+    parser.add_argument('--vector_l2', action='store_true')
+    parser.add_argument('--max_grad_norm', type=int, default=1)
+    parser.add_argument('--scores_per_epoch', type=int, default=3)
+    parser.add_argument('--sequence_dim', type=int, default=None)
+    parser.add_argument('--test_split', type=float, default=.2)
+    parser.add_argument('--validation_split', type=float, default=.2)
+    parser.add_argument('--encoder_path', type=str, default='model_params/encoder_bpe_40000.json')
+    parser.add_argument('--bpe_path', type=str, default='model_params/vocab_40000.bpe')
+    parser.add_argument('--task_path', type=str)
 
-	args = parser.parse_args()
-	verbose = args.verbose
-	if verbose:
-		verbose_print(verbose, vars(args))
+    args = parser.parse_args()
+    verbose = args.verbose
+    if verbose:
+        verbose_print(verbose, vars(args))
 
-	task_path = args.task_path
-	with open(task_path, 'r') as task_file:
-		task = json.load(task_file)
-	validate_task(task)
-	task_type = task['task_type']
+    task_path = args.task_path
+    with open(task_path, 'r') as task_file:
+        task = json.load(task_file)
+    validate_task(task)
+    target_type = task['target']['target_type']
 
-	set_seed(args.seed)
-	device = get_device(verbose)
+    set_seed(args.seed)
+    device = get_device(verbose)
 
-	text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
+    text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
 
-	train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose, sequence_dim=args.sequence_dim)
+    train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose, sequence_dim=args.sequence_dim)
 
-	sequence_dim = train_dataloader.dataset.sequence_dim
-	vocab_size = len(text_encoder.encoder) + sequence_dim
+    sequence_dim = train_dataloader.dataset.sequence_dim
+    vocab_size = len(text_encoder.encoder) + sequence_dim
 
-	dh_model = DoubleHeadModel(args, text_encoder.classify_token, task, vocab_size, sequence_dim)
+    dh_model = DoubleHeadModel(args, text_encoder.classify_token, task['target']['num_classes'], vocab_size, sequence_dim)
 
-	load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
-	# torch.save(dh_model.state_dict(), 'weights.pth')
-	# dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
-	# verbose_print('Loading Weights')
-	# dh_model.load_state_dict(torch.load('weights.pth'))
+    load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
+    # torch.save(dh_model.state_dict(), 'weights.pth')
+    # dh_model = DoubleHeadModel(args, text_encoder.classify_token, task_type, vocab_size, sequence_dim)
+    # verbose_print('Loading Weights')
+    # dh_model.load_state_dict(torch.load('weights.pth'))
 
-	lm_criterion = nn.CrossEntropyLoss(reduction='none')
+    lm_criterion = nn.CrossEntropyLoss(reduction='none')
 
-	if task_type == 'MultipleChoice' or task_type == 'DocumentClassification':
-		task_criterion = nn.CrossEntropyLoss(reduction='none')
-	elif task_type == 'DocumentSimilarity':
-		raise NotImplementedError()
-	else:
-		raise NotImplementedError()
+    if target_type == 'classification':
+        task_criterion = nn.CrossEntropyLoss(reduction='none')
+        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type)
+    elif target_type == 'regression':
+        task_criterion = nn.MSELoss(reduction='none')
+        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type)
+    else:
+        raise NotImplementedError()
 
-	if args.opt == 'adam':
-		model_opt = Adam(dh_model.parameters(),
-						 lr=args.lr,
-						 betas=(args.b1, args.b2),
-						 eps=args.eps)
-	elif args.opt == 'openai_adam':
-		n_updates_total = (train_dataloader.dataset.instances.shape[0] // args.batch_size) * args.n_iter
-		model_opt = OpenAIAdam(dh_model.parameters(),
-							   lr=args.lr,
-							   schedule=args.lr_schedule,
-							   warmup=args.lr_warmup,
-							   t_total=n_updates_total,
-							   b1=args.b1,
-							   b2=args.b2,
-							   e=args.eps,
-							   l2=args.l2,
-							   vector_l2=args.vector_l2,
-							   max_grad_norm=args.max_grad_norm)
-	else:
-		raise NotImplementedError()
+    if args.opt == 'adam':
+        model_opt = Adam(dh_model.parameters(),
+                         lr=args.lr,
+                         betas=(args.b1, args.b2),
+                         eps=args.eps)
+    elif args.opt == 'openai_adam':
+        n_updates_total = (train_dataloader.dataset.instances.shape[0] // args.batch_size) * args.n_iter
+        model_opt = OpenAIAdam(dh_model.parameters(),
+                               lr=args.lr,
+                               schedule=args.lr_schedule,
+                               warmup=args.lr_warmup,
+                               t_total=n_updates_total,
+                               b1=args.b1,
+                               b2=args.b2,
+                               e=args.eps,
+                               l2=args.l2,
+                               vector_l2=args.vector_l2,
+                               max_grad_norm=args.max_grad_norm)
+    else:
+        raise NotImplementedError()
 
-	dh_model.to(device)
+    dh_model.to(device)
 
-	task_file_name = os.path.basename(args.task_path)
-	task_name = os.path.join(os.path.splitext(task_file_name)[0],
-							 '{}tr__{}val__{}te'.format(train_dataloader.dataset.instances.shape[0],
-														validation_dataloader.dataset.instances.shape[0],
-														test_dataloader.dataset.instances.shape[0])
-							 )
-	targets = np.concatenate([train_dataloader.dataset.targets, validation_dataloader.dataset.targets, test_dataloader.dataset.targets])
-	default_accuracy = float(mode(targets).count[0]) / float(len(targets))
-	scores_per_epoch = args.scores_per_epoch
-	logger = Logger(vars(args), task_name, scores_per_epoch, default_accuracy)
-	train(train_dataloader, validation_dataloader, dh_model, lm_criterion, task_criterion, model_opt, logger, args)
-	test(test_dataloader, dh_model, lm_criterion, task_criterion, logger, args)
+    task_file_name = os.path.basename(args.task_path)
+    task_name = os.path.join(os.path.splitext(task_file_name)[0],
+                             '{}tr__{}val__{}te'.format(train_dataloader.dataset.instances.shape[0],
+                                                        validation_dataloader.dataset.instances.shape[0],
+                                                        test_dataloader.dataset.instances.shape[0])
+                             )
+    targets = np.concatenate([train_dataloader.dataset.targets, validation_dataloader.dataset.targets, test_dataloader.dataset.targets])
+    default_accuracy = float(mode(targets).count[0]) / float(len(targets))
+    scores_per_epoch = args.scores_per_epoch
+    logger = Logger(vars(args), task_name, scores_per_epoch, default_accuracy)
+    train(train_dataloader, validation_dataloader, dh_model, lm_criterion, task_criterion, model_opt, logger, args, evaluator)
+    test(test_dataloader, dh_model, lm_criterion, task_criterion, logger, args, evaluator)
 

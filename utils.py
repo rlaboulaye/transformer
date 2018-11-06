@@ -32,6 +32,7 @@ def get_device(verbose=True):
 	return device
 
 def validate_task(task, task_schema_path='schema/task_schema.json'):
+	task_schema_path = 'schema/task_schema_updated.json'
 	with open(task_schema_path, 'r') as task_schema_file:
 		task_schema = json.load(task_schema_file)
 	try:
