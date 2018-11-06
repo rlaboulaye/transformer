@@ -82,7 +82,10 @@ if __name__ == '__main__':
     dh_model = DoubleHeadModel(config, text_encoder.classify_token, task, vocab_size, sequence_dim)
     freeze_weights(dh_model, num_layers=11)
 
-    optimizer = StackedOptimizer(dh_model)
+    modules = [module for module in dh_model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
+    learn_initialization_indices = range(len(modules) - 1)
+
+    optimizer = StackedOptimizer(dh_model, learn_initialization_indices=learn_initialization_indices)
     optimizer.to(device)
     meta_optimizer = Adam(optimizer.parameters(), lr=.001)
     #
@@ -104,9 +107,8 @@ if __name__ == '__main__':
         load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3, verbose=verbose)
         freeze_weights(dh_model, num_layers=11)
 
-        learn_initialization = False
-        optimizer.initialize_params(dh_model, learn_initialization)
-        optimizer.reset_state(learn_initialization)
+        optimizer.initialize_params(dh_model, learn_initialization_indices)
+        optimizer.reset_state()
 
         for batch in train_dataloader:
             continue
