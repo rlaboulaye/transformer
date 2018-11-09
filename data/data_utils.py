@@ -19,9 +19,9 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 		train_val_dataframe, test_dataframe = split_dataframe(train_val_dataframe, test_split)
 	train_dataframe, validation_dataframe = split_dataframe(train_val_dataframe, validation_split)
 
-	train_documents_dataframe = create_documents(train_dataframe, task["documents"], task["task_type"], text_encoder, verbose, sequence_dim)
-	validation_documents_dataframe = create_documents(validation_dataframe, task["documents"], task["task_type"], text_encoder, verbose, sequence_dim)
-	test_documents_dataframe = create_documents(test_dataframe, task["documents"], task["task_type"], text_encoder, verbose, sequence_dim)
+	train_documents_dataframe, document_structure = create_documents(train_dataframe, task["documents"], task["task_type"], text_encoder, verbose, sequence_dim)
+	validation_documents_dataframe, document_structure = create_documents(validation_dataframe, task["documents"], task["task_type"], text_encoder, verbose, sequence_dim)
+	test_documents_dataframe, document_structure = create_documents(test_dataframe, task["documents"], task["task_type"], text_encoder, verbose, sequence_dim)
 
 	if sequence_dim is None:
 		max_sequence_length = max(
@@ -60,7 +60,7 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 			'batch_size': batch_size,
 			'shuffle': True
 	}
-	return data.DataLoader(train_set, **data_params), data.DataLoader(validation_set, **data_params), data.DataLoader(test_set, **data_params)
+	return data.DataLoader(train_set, **data_params), data.DataLoader(validation_set, **data_params), data.DataLoader(test_set, **data_params), document_structure
 
 
 def load_dataframe(path, file_type, has_header):
@@ -118,7 +118,7 @@ def create_one_document(dataframe, document, task_type, text_encoder, verbose, s
 	num_tokens = 2
 	doc_length = sequence_dim - num_tokens if sequence_dim is not None else None
 	return document_dataframe.progress_apply(
-		lambda x: [text_encoder.start_token] + x[:doc_length] + [text_encoder.classify_token], axis=1)
+		lambda x: [text_encoder.start_token] + x[:doc_length] + [text_encoder.classify_token], axis=1), "one"
 
 
 def create_one_to_one_document(dataframe, doc1, doc2, task_type, text_encoder, verbose, sequence_dim):
@@ -133,7 +133,7 @@ def create_one_to_one_document(dataframe, doc1, doc2, task_type, text_encoder, v
 	return documents_dataframe.progress_apply(
 		lambda x: [text_encoder.start_token] + x[documents_dataframe.columns[0]][:doc1_length] + [
 			text_encoder.delimeter_token] + x[documents_dataframe.columns[1]][:doc2_length] + [
-					  text_encoder.classify_token], axis=1).to_frame()
+					  text_encoder.classify_token], axis=1).to_frame(), "one_to_one"
 
 
 def create_one_to_many_document(dataframe, primary_doc, secondary_docs, task_type, text_encoder, verbose, sequence_dim):
@@ -171,7 +171,7 @@ def create_one_to_many_document(dataframe, primary_doc, secondary_docs, task_typ
 					x[choice_column_name] +
 					[text_encoder.classify_token], axis=1))
 
-	return pd.concat(multiple_choice_documents, axis=1)
+	return pd.concat(multiple_choice_documents, axis=1), "one_to_many"
 
 
 def encode_documents(dataframe, documents, text_encoder, verbose):

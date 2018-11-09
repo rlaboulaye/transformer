@@ -1,26 +1,28 @@
 {
 	"$schema": "task_schema.json",
-	"task_type": "DocumentSimilarity",
+	"task_type": "Comparison",
 	"train_file": {
 		"file_path": "/users/data/metanlp/nlp_datasets/related_sentences/sentence_pairs_similarity.csv",
 		"file_type": "csv",
 		"file_header": true
 	},
-	"document_list"	: [
-		{
+	"documents"	: {
+		"primary_document": {
 			"column_indices": [
 				0
 			]
 		},
-		{
-			"column_indices": [
-				1
-			]
-		}
-	],
-	"target": {
-		"column_indices": [
-			2
+		"associated_documents": [
+			{
+				"column_indices": [
+					1
+				]
+			}
 		]
+	},
+	"target": {
+		"column_index": 2,
+		"target_type": "regression",
+		"num_classes": 1
 	}
 }

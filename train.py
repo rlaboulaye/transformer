@@ -15,25 +15,23 @@ from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
 from opt import OpenAIAdam
-from loss import compute_double_head_loss, compute_accuracy, Evaluator
+from evaluate import Evaluator
 
 
-def score(dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose, evaluator):
+def score(dataloader, model, verbose, evaluator):
     losses = []
     accuracies = []
     with torch.no_grad():
         model.eval()
         for x, m, y in get_iterator(dataloader, verbose):
             lm_logits, task_logits = model(x)
-            # double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, lm_coef, task_coef)
-            # accuracy = compute_accuracy(y, task_logits)
             double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
             accuracy = evaluator.compute_score(y, task_logits)
             losses.extend([double_head_loss.cpu().item()] * x.shape[0])
             accuracies.extend([accuracy.cpu().item()] * x.shape[0])
     return np.mean(losses), np.mean(accuracies)
 
-def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, optimizer, scores_per_epoch, verbose, evaluator):
+def run_epoch(train_dataloader, validation_dataloader, model, optimizer, scores_per_epoch, verbose, evaluator):
     train_losses = []
     train_accuracies = []
     validation_losses = []
@@ -43,7 +41,6 @@ def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task
     n_updates = 0
     for x, m, y in get_iterator(train_dataloader, verbose):
         lm_logits, task_logits = model(x)
-        # double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, lm_coef, task_coef)
         double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
         double_head_loss.backward()
         optimizer.step()
@@ -51,8 +48,8 @@ def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task
 
         n_updates += 1
         if n_updates % math.ceil(float(len(train_dataloader)) / float(scores_per_epoch)) == 0 or n_updates == len(train_dataloader):
-            train_loss, train_accuracy = score(train_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose, evaluator=evaluator)
-            validation_loss, validation_accuracy = score(validation_dataloader, model, lm_criterion, task_criterion, lm_coef, task_coef, verbose=verbose, evaluator=evaluator)
+            train_loss, train_accuracy = score(train_dataloader, model, verbose=verbose, evaluator=evaluator)
+            validation_loss, validation_accuracy = score(validation_dataloader, model, verbose=verbose, evaluator=evaluator)
             train_losses.append(train_loss)
             train_accuracies.append(train_accuracy)
             validation_losses.append(validation_loss)
@@ -61,7 +58,7 @@ def run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task
 
     return train_losses, train_accuracies, validation_losses, validation_accuracies
 
-def train(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, model_opt, logger, args, evaluator):
+def train(train_dataloader, validation_dataloader, model, model_opt, logger, args, evaluator):
 
     min_loss = float('inf')
     weight_directory = os.path.join('weights', logger.task_name)
@@ -75,7 +72,7 @@ def train(train_dataloader, validation_dataloader, model, lm_criterion, task_cri
 
         verbose_print(verbose, 'Running epoch {}'.format(epoch))
 
-        train_losses, train_accuracies, validation_losses, validation_accuracies = run_epoch(train_dataloader, validation_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., model_opt, logger.results['scores_per_epoch'], verbose, evaluator)
+        train_losses, train_accuracies, validation_losses, validation_accuracies = run_epoch(train_dataloader, validation_dataloader, model, model_opt, logger.results['scores_per_epoch'], verbose, evaluator)
         logger.results['train_losses'].extend(train_losses)
         logger.results['train_accuracies'].extend(train_accuracies)
         logger.results['validation_losses'].extend(validation_losses)
@@ -101,11 +98,10 @@ def train(train_dataloader, validation_dataloader, model, lm_criterion, task_cri
         model.lm_head.load_state_dict(torch.load(lm_head_path))
         model.task_head.load_state_dict(torch.load(task_head_path))
 
-def test(test_dataloader, model, lm_criterion, task_criterion, logger, args, evaluator):
-
+def test(test_dataloader, model, logger, evaluator):
     verbose_print(verbose, 'Testing')
 
-    test_loss, test_accuracy = score(test_dataloader, model, lm_criterion, task_criterion, args.lm_coef, 1., verbose, evaluator)
+    test_loss, test_accuracy = score(test_dataloader, model, verbose, evaluator)
     logger.results['test_loss'] = test_loss
     logger.results['test_accuracy'] = test_accuracy
     logger.log()
@@ -220,16 +216,17 @@ if __name__ == '__main__':
     target_type = task['target']['target_type']
 
     set_seed(args.seed)
+
     device = get_device(verbose)
 
     text_encoder = TextEncoder(args.encoder_path, args.bpe_path)
 
-    train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose, sequence_dim=args.sequence_dim)
+    train_dataloader, validation_dataloader, test_dataloader, document_structure = get_dataloaders(task, text_encoder, args.test_split, args.validation_split, args.batch_size, device, verbose, sequence_dim=args.sequence_dim)
 
     sequence_dim = train_dataloader.dataset.sequence_dim
     vocab_size = len(text_encoder.encoder) + sequence_dim
-
-    dh_model = DoubleHeadModel(args, text_encoder.classify_token, task['target']['num_classes'], vocab_size, sequence_dim)
+    num_output = task['target']['num_classes'] if not document_structure == 'one_to_many' else 1
+    dh_model = DoubleHeadModel(args, text_encoder.classify_token, num_output, vocab_size, sequence_dim)
 
     load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3)
     # torch.save(dh_model.state_dict(), 'weights.pth')
@@ -241,10 +238,10 @@ if __name__ == '__main__':
 
     if target_type == 'classification':
         task_criterion = nn.CrossEntropyLoss(reduction='none')
-        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type)
+        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type, document_structure, task["target"]["num_classes"])
     elif target_type == 'regression':
         task_criterion = nn.MSELoss(reduction='none')
-        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type)
+        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type, document_structure, task["target"]["num_classes"])
     else:
         raise NotImplementedError()
 
@@ -281,6 +278,6 @@ if __name__ == '__main__':
     default_accuracy = float(mode(targets).count[0]) / float(len(targets))
     scores_per_epoch = args.scores_per_epoch
     logger = Logger(vars(args), task_name, scores_per_epoch, default_accuracy)
-    train(train_dataloader, validation_dataloader, dh_model, lm_criterion, task_criterion, model_opt, logger, args, evaluator)
-    test(test_dataloader, dh_model, lm_criterion, task_criterion, logger, args, evaluator)
+    train(train_dataloader, validation_dataloader, dh_model, model_opt, logger, args, evaluator)
+    test(test_dataloader, dh_model, logger, evaluator)
 
