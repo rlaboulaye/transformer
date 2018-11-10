@@ -34,14 +34,14 @@ class LSTMOptimizer(nn.Module):
 		self.activation = nn.Sigmoid()
 		self.W_theta = nn.Linear(input_dim, 1, bias=True)
 		self.W_grad = nn.Linear(input_dim, 1, bias=True)
-		embed_dim = 4
 		num_head = 1
 		attn_pdrop = .1
 		resid_pdrop = .1
 		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
 		dims = [shape[1] if len(shape) == 2 else 1 for shape in shapes]
 		seq_dim = np.sum(dims)
-		self.attention = Attention(embed_dim, seq_dim, num_head, attn_pdrop, resid_pdrop, True)
+		self.attention_theta = Attention(1, seq_dim, num_head, attn_pdrop, resid_pdrop, True)
+		self.attention_grad = Attention(4, seq_dim, num_head, attn_pdrop, resid_pdrop, True)
 		self.initialize_optimizer_params()
 
 	def set_module(self, module):
@@ -75,9 +75,10 @@ class LSTMOptimizer(nn.Module):
 		return self
 
 	def reset_state(self):
-		shape = (np.sum([np.prod(param.shape) for param in self.local_module._parameters.values() if param is not None]), 1)
-		self.f_tm1 = torch.ones(shape, device=self.device)
-		self.i_tm1 = torch.zeros(shape, device=self.device)
+		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
+		self.f_tm1 = torch.ones(shapes[0][0], 1, device=self.device)
+		self.i_tm1 = torch.zeros(shapes[0][0], 1, device=self.device)
+		shape = (np.sum([np.prod(shape) for shape in shapes]), 1)
 		self.delta_tm1 = torch.zeros(shape, device=self.device)
 		self.state_tm1 = None
 		if self.learn_initialization:
@@ -121,22 +122,20 @@ class LSTMOptimizer(nn.Module):
 		return z
 
 	def update_rule(self, grad_t, loss_t):
-		batch_size = grad_t.shape[0]
 		preprocessed_grad_t = self.preprocess(grad_t)
 		preprocessed_loss_t = self.preprocess(loss_t)
 		preprocessed_input = torch.cat([preprocessed_grad_t, preprocessed_loss_t], dim=-1)
-		attention_output = self.attention(preprocessed_input)
+		compressed_grad_t = self.attention_grad(preprocessed_input).unsqueeze(0)
 		if self.state_tm1 is None:
-			output_t, state_t = self.lstm(attention_output)
+			output_t, state_t = self.lstm(compressed_grad_t)
 		else:
-			output_t, state_t = self.lstm(attention_output, self.state_tm1)
-		print(output_t.shape)
-		import sys
-		sys.exit(0)
-		f_t = self.activation(self.W_theta(torch.cat([output_t.view(batch_size, -1), self.theta_tm1, self.f_tm1], dim=-1)))
-		i_t = self.activation(self.W_grad(torch.cat([output_t.view(batch_size, -1), self.theta_tm1, self.i_tm1], dim=-1)))
-		delta_t = self.momentum * self.delta_tm1 - i_t * grad_t
-		theta_t = f_t * self.theta_tm1 + delta_t
+			output_t, state_t = self.lstm(compressed_grad_t, self.state_tm1)
+		output_t = output_t.squeeze(0)
+		compressed_theta_tm1 = self.attention_theta(self.theta_tm1.view(grad_t.shape + (1,)))
+		f_t = self.activation(self.W_theta(torch.cat([output_t, compressed_theta_tm1, self.f_tm1], dim=-1)))
+		i_t = self.activation(self.W_grad(torch.cat([output_t, compressed_theta_tm1, self.i_tm1], dim=-1)))
+		delta_t = self.momentum * self.delta_tm1 - (grad_t.transpose(1,0) * i_t.view(-1)).transpose(1,0).view(-1)
+		theta_t = (theta_tm1.transpose(1,0) * f_t.view(-1)).transpose(1,0).view(-1) + delta_t
 		self.f_tm1 = f_t
 		self.i_tm1 = i_t
 		self.theta_tm1 = theta_t
