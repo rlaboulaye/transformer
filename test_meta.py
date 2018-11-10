@@ -11,7 +11,7 @@ from meta.mlp import MLP
 
 def train_network(train_set, test_set, num_classes, loss_function, optimizer, meta_optimizer, device, epochs):
 
-    mlp = MLP(X_Y.shape[-1] - 1, num_classes, 32)
+    mlp = MLP(X_Y.shape[-1] - 1, num_classes, 1024)
     mlp.to(device)
 
     optimizer.initialize_params(mlp, learn_initialization_indices)
@@ -72,7 +72,7 @@ num_classes = len(set(X_Y[:,:,-1].reshape(-1)))
 
 loss_function = CrossEntropyLoss()
 
-mlp = MLP(X_Y.shape[-1] - 1, num_classes, 32)
+mlp = MLP(X_Y.shape[-1] - 1, num_classes, 1024)
 
 learn_initialization_indices = [0,1]
 optimizer = StackedOptimizer(mlp, learn_initialization_indices=learn_initialization_indices)
