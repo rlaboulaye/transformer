@@ -19,9 +19,10 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 		train_val_dataframe, test_dataframe = split_dataframe(train_val_dataframe, test_split)
 	train_dataframe, validation_dataframe = split_dataframe(train_val_dataframe, validation_split)
 
-	train_documents_dataframe, document_structure = create_documents(train_dataframe, task["documents"], task["task_type"], text_encoder, verbose, sequence_dim)
-	validation_documents_dataframe, document_structure = create_documents(validation_dataframe, task["documents"], task["task_type"], text_encoder, verbose, sequence_dim)
-	test_documents_dataframe, document_structure = create_documents(test_dataframe, task["documents"], task["task_type"], text_encoder, verbose, sequence_dim)
+	raw_documents = task["documents"]
+	train_documents_dataframe, document_structure = create_documents(train_dataframe, raw_documents, text_encoder, verbose, sequence_dim)
+	validation_documents_dataframe, _ = create_documents(validation_dataframe, raw_documents, text_encoder, verbose, sequence_dim)
+	test_documents_dataframe, _ = create_documents(test_dataframe, raw_documents, text_encoder, verbose, sequence_dim)
 
 	if sequence_dim is None:
 		max_sequence_length = max(
@@ -38,24 +39,23 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	test_document_matrix, test_mask_matrix = get_document_matrix(test_documents_dataframe, max_sequence_length)
 	test_matrices = (test_document_matrix, test_mask_matrix)
 
-	# what is target_encoders for?
-	if task['target']['target_type'] == "classification":
-		train_target_matrix, target_encoders = get_target_matrix(train_dataframe, task['target'])
-		train_matrices += (train_target_matrix,)
-		validation_target_matrix, target_encoders = get_target_matrix(validation_dataframe, task['target'])
-		validation_matrices += (validation_target_matrix,)
-		test_target_matrix, target_encoders = get_target_matrix(test_dataframe, task['target'])
-		test_matrices += (test_target_matrix,)
-	elif task['target']['target_type'] == 'regression':
-		train_matrices += (train_dataframe[train_dataframe.columns[task['target']['column_index']]].values,)
-		validation_matrices += (validation_dataframe[validation_dataframe.columns[task['target']['column_index']]].values,)
-		test_matrices += (test_dataframe[test_dataframe.columns[task['target']['column_index']]].values,)
+	target_type = task['target']['target_type']
+	target_index = task['target']['column_index']
+
+	train_target_matrix, target_encoders = get_target_matrix(train_dataframe, target_index, target_type)
+	train_matrices += (train_target_matrix,)
+
+	validation_target_matrix, _ = get_target_matrix(validation_dataframe, target_index, target_type, target_encoders)
+	validation_matrices += (validation_target_matrix,)
+
+	test_target_matrix, _ = get_target_matrix(test_dataframe, target_index, target_type, target_encoders)
+	test_matrices += (test_target_matrix,)
 
 	vocab_size = len(text_encoder.encoder)
 
-	train_set = Dataset(device, task['target']['target_type'], vocab_size, *train_matrices)
-	validation_set = Dataset(device, task['target']['target_type'], vocab_size, *validation_matrices)
-	test_set = Dataset(device, task['target']['target_type'], vocab_size, *test_matrices)
+	train_set = Dataset(device, target_type, vocab_size, *train_matrices)
+	validation_set = Dataset(device, target_type, vocab_size, *validation_matrices)
+	test_set = Dataset(device, target_type, vocab_size, *test_matrices)
 	data_params = {
 			'batch_size': batch_size,
 			'shuffle': True
@@ -75,20 +75,25 @@ def load_dataframe(path, file_type, has_header):
 	else:
 		return pd.read_csv(path, sep=separator)
 
-def get_target_matrix(dataframe, target, encoders=None):
+
+def get_target_matrix(dataframe, target_col_index, target_type, encoders=None):
+	if target_type == 'regression':
+		return dataframe[dataframe.columns[target_col_index]].values, None
+
 	targets = []
 	if encoders is None:
-		target_col = dataframe[dataframe.columns[target["column_index"]]]
+		target_col = dataframe[dataframe.columns[target_col_index]]
 		encoder = LabelEncoder()
 		targets.append(encoder.fit_transform(target_col).reshape(-1, 1))
 		encoders = (encoder,)
 	else:
-		for encoder, index in zip(encoders, [target['column_index']]):
+		for encoder, index in zip(encoders, [target_col_index]):
 			targets.append(encoder.transform(dataframe[dataframe.columns[index]]).reshape(-1,1))
 	target_matrix = np.concatenate(targets, axis=1)
 	if target_matrix.shape[1] == 1:
 		target_matrix = target_matrix.reshape(-1)
 	return target_matrix, encoders
+
 
 def get_document_matrix(documents_dataframe, max_sequence_length):
 	document_matrices = [np.stack(documents_dataframe[column].apply(lambda x: np.pad(x, (0, max_sequence_length - len(x)), mode='constant')).values) for column in documents_dataframe.columns]
@@ -97,19 +102,20 @@ def get_document_matrix(documents_dataframe, max_sequence_length):
 	mask_matrix = np.concatenate([mask_matrix.reshape(-1, 1, max_sequence_length) for mask_matrix in mask_matrices], axis=1)
 	return document_matrix, mask_matrix
 
-def create_documents(dataframe, documents, task_type, text_encoder, verbose, sequence_dim):
+
+def create_documents(dataframe, documents, text_encoder, verbose, sequence_dim):
 	assert len(documents) == 1 or len(documents) ==2
 	if len(documents) == 1:
-		return create_one_document(dataframe, documents['primary_document'], task_type, text_encoder, verbose, sequence_dim)
+		return create_one_document(dataframe, documents['primary_document'], text_encoder, verbose, sequence_dim)
 	else:
 		assert len(documents['associated_documents']) > 0
 		if len(documents['associated_documents']) == 1:
-			return create_one_to_one_document(dataframe, documents["primary_document"], documents["associated_documents"][0], task_type, text_encoder, verbose, sequence_dim)
+			return create_one_to_one_document(dataframe, documents["primary_document"], documents["associated_documents"][0], text_encoder, verbose, sequence_dim)
 		else:
-			return create_one_to_many_document(dataframe, documents["primary_document"], documents["associated_documents"], task_type, text_encoder, verbose, sequence_dim)
+			return create_one_to_many_document(dataframe, documents["primary_document"], documents["associated_documents"], text_encoder, verbose, sequence_dim)
 
 
-def create_one_document(dataframe, document, task_type, text_encoder, verbose, sequence_dim):
+def create_one_document(dataframe, document, text_encoder, verbose, sequence_dim):
 	document_dataframe = encode_documents(dataframe, [document], text_encoder, verbose)
 	tqdm.pandas(disable=not verbose, ncols=150, desc='Appending special tokens to {} document(s) for each instance'.format(document_dataframe.shape[1] - 1))
 
@@ -121,7 +127,7 @@ def create_one_document(dataframe, document, task_type, text_encoder, verbose, s
 		lambda x: [text_encoder.start_token] + x[:doc_length] + [text_encoder.classify_token], axis=1), "one"
 
 
-def create_one_to_one_document(dataframe, doc1, doc2, task_type, text_encoder, verbose, sequence_dim):
+def create_one_to_one_document(dataframe, doc1, doc2, text_encoder, verbose, sequence_dim):
 	documents_dataframe = encode_documents(dataframe, [doc1, doc2], text_encoder, verbose)
 	tqdm.pandas(disable=not verbose, ncols=150, desc='Appending special tokens to {} document(s) for each instance'.format(documents_dataframe.shape[1] - 1))
 
@@ -136,7 +142,7 @@ def create_one_to_one_document(dataframe, doc1, doc2, task_type, text_encoder, v
 					  text_encoder.classify_token], axis=1).to_frame(), "one_to_one"
 
 
-def create_one_to_many_document(dataframe, primary_doc, secondary_docs, task_type, text_encoder, verbose, sequence_dim):
+def create_one_to_many_document(dataframe, primary_doc, secondary_docs, text_encoder, verbose, sequence_dim):
 	documents_dataframe = encode_documents(dataframe, [primary_doc] + secondary_docs, text_encoder, verbose)
 	tqdm.pandas(disable=not verbose, ncols=150, desc='Appending special tokens to {} document(s) for each instance'.format(documents_dataframe.shape[1] - 1))
 
@@ -219,6 +225,7 @@ def create_multiple_choice_documents(documents_dataframe, sequence_dim, text_enc
 					[text_encoder.classify_token], axis=1))
 
 	return pd.concat(multiple_choice_documents, axis=1)
+
 
 def split_dataframe(dataframe, split=.2):
 	split_df2 = dataframe.sample(frac=split, replace=False)
