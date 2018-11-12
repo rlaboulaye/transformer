@@ -75,16 +75,15 @@ class LSTMOptimizer(nn.Module):
 		return self
 
 	def reset_state(self):
-		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
+		shapes = [param.shape if len(param.shape) > 1 else param.shape + (1,) for param in self.local_module._parameters.values() if param is not None]
 		self.f_tm1 = torch.ones(shapes[0][0], 1, device=self.device)
 		self.i_tm1 = torch.zeros(shapes[0][0], 1, device=self.device)
-		shape = (np.sum([np.prod(shape) for shape in shapes]), 1)
-		self.delta_tm1 = torch.zeros(shape, device=self.device)
+		self.delta_tm1 = torch.zeros(shapes[0][0], np.sum([shape[1] for shape in shapes]), device=self.device)
 		self.state_tm1 = None
 		if self.learn_initialization:
-			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values() if param is not None], dim=0)
+			self.theta_tm1 = torch.cat([param if len(param.shape) > 1 else param.view(-1,1) for param in self.local_module._parameters.values() if param is not None], dim=-1)
 		else:
-			self.theta_tm1 = torch.cat([param.view(-1,1) for param in self.local_module._parameters.values() if param is not None], dim=0).clone().detach()
+			self.theta_tm1 = torch.cat([param if len(param.shape) > 1 else param.view(-1,1) for param in self.local_module._parameters.values() if param is not None], dim=-1).clone().detach()
 
 	def initialize_params(self):
 		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
@@ -134,8 +133,8 @@ class LSTMOptimizer(nn.Module):
 		compressed_theta_tm1 = self.attention_theta(self.theta_tm1.view(grad_t.shape + (1,)))
 		f_t = self.activation(self.W_theta(torch.cat([output_t, compressed_theta_tm1, self.f_tm1], dim=-1)))
 		i_t = self.activation(self.W_grad(torch.cat([output_t, compressed_theta_tm1, self.i_tm1], dim=-1)))
-		delta_t = self.momentum * self.delta_tm1 - (grad_t.transpose(1,0) * i_t.view(-1)).transpose(1,0).view(-1)
-		theta_t = (theta_tm1.transpose(1,0) * f_t.view(-1)).transpose(1,0).view(-1) + delta_t
+		delta_t = self.momentum * self.delta_tm1 - i_t * grad_t
+		theta_t = f_t * self.theta_tm1 + delta_t
 		self.f_tm1 = f_t
 		self.i_tm1 = i_t
 		self.theta_tm1 = theta_t
@@ -154,7 +153,7 @@ class LSTMOptimizer(nn.Module):
 				shape += (1,)
 			gradients.append(parameter.grad.clone().detach().view(shape))
 		grad_t = torch.cat(gradients, dim=-1)
-		param_t = self.update_rule(grad_t, grad_t.new_full(grad_t.shape, loss_t.item()))
+		param_t = self.update_rule(grad_t, grad_t.new_full(grad_t.shape, loss_t.item())).view(-1)
 		parameters = param_t.split([np.prod(shape) for shape in shapes])
 		for parameter_index, parameter_name in enumerate(module_with_grads._parameters):
 			self.local_module._parameters[parameter_name] = parameters[parameter_index].view(shapes[parameter_index])
