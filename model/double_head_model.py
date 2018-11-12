@@ -5,7 +5,6 @@ from torch import nn
 from .transformer import Transformer
 from .language_model_head import LanguageModelHead
 from .task_head import TaskHead
-from .multiple_choice_head import MultipleChoiceHead
 
 
 class DoubleHeadModel(nn.Module):

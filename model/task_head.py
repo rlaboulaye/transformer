@@ -26,6 +26,7 @@ class TaskHead(nn.Module):
         # https://github.com/huggingface/pytorch-openai-transformer-lm/issues/11
         clf_h = self.dropout(clf_h.transpose(1, 2)).transpose(1, 2)
         clf_h = clf_h.contiguous().view(-1, self.n_embd)
-        clf_logits = self.linear(clf_h)
+        output = self.linear(clf_h)
 
-        return clf_logits
+        output = output.view(-1, x.size(1)*self.n_output)
+        return output

@@ -54,7 +54,6 @@ def run_epoch(train_dataloader, validation_dataloader, model, optimizer, scores_
             train_accuracies.append(train_accuracy)
             validation_losses.append(validation_loss)
             validation_accuracies.append(validation_accuracy)
-        n_updates += 1
 
     return train_losses, train_accuracies, validation_losses, validation_accuracies
 
@@ -238,10 +237,10 @@ if __name__ == '__main__':
 
     if target_type == 'classification':
         task_criterion = nn.CrossEntropyLoss(reduction='none')
-        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type, document_structure, task["target"]["num_classes"])
+        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type)
     elif target_type == 'regression':
         task_criterion = nn.MSELoss(reduction='none')
-        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type, document_structure, task["target"]["num_classes"])
+        evaluator = Evaluator(lm_criterion, task_criterion, args.lm_coef, 1., target_type)
     else:
         raise NotImplementedError()
 
