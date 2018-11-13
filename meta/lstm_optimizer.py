@@ -19,7 +19,7 @@ class LSTMOptimizer(nn.Module):
 		self.neg_exp_p = np.exp(-self.p)
 
 		self.lstm = nn.LSTM(
-			input_size=4,
+			input_size=5,
 			hidden_size=hidden_size,
 			num_layers=num_layers,
 			bias=True
@@ -30,7 +30,6 @@ class LSTMOptimizer(nn.Module):
 			self.initialize_theta_0()
 		self.reset_state()
 
-		# input_dim = hidden_size + 2
 		input_dim = hidden_size + 1
 		self.activation = nn.Sigmoid()
 		self.W_theta = nn.Linear(input_dim, 1, bias=True)
@@ -41,8 +40,7 @@ class LSTMOptimizer(nn.Module):
 		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
 		dims = [shape[1] if len(shape) == 2 else 1 for shape in shapes]
 		seq_dim = np.sum(dims)
-		self.attention_theta = Attention(1, seq_dim, num_head, attn_pdrop, resid_pdrop, True)
-		self.attention_grad = Attention(4, seq_dim, num_head, attn_pdrop, resid_pdrop, True)
+		self.attention = Attention(5, seq_dim, num_head, attn_pdrop, resid_pdrop, True)
 		self.initialize_optimizer_params()
 
 	def set_module(self, module):
@@ -124,16 +122,14 @@ class LSTMOptimizer(nn.Module):
 	def update_rule(self, grad_t, loss_t):
 		preprocessed_grad_t = self.preprocess(grad_t)
 		preprocessed_loss_t = self.preprocess(loss_t)
-		preprocessed_input = torch.cat([preprocessed_grad_t, preprocessed_loss_t], dim=-1)
-		compressed_grad_t = self.attention_grad(preprocessed_input).unsqueeze(0)
+		preprocessed_theta_tm1 = self.theta_tm1.clone().detach().unsqueeze(-1)
+		preprocessed_input = torch.cat([preprocessed_grad_t, preprocessed_loss_t, preprocessed_theta_tm1], dim=-1)
+		compressed_input = self.attention(preprocessed_input).unsqueeze(0)
 		if self.state_tm1 is None:
-			output_t, state_t = self.lstm(compressed_grad_t)
+			output_t, state_t = self.lstm(compressed_input)
 		else:
-			output_t, state_t = self.lstm(compressed_grad_t, self.state_tm1)
+			output_t, state_t = self.lstm(compressed_input, self.state_tm1)
 		output_t = output_t.squeeze(0)
-		# compressed_theta_tm1 = self.attention_theta(self.theta_tm1.unsqueeze(-1))
-		# f_t = self.activation(self.W_theta(torch.cat([output_t, compressed_theta_tm1, self.f_tm1], dim=-1)))
-		# i_t = self.activation(self.W_grad(torch.cat([output_t, compressed_theta_tm1, self.i_tm1], dim=-1)))
 		f_t = self.activation(self.W_theta(torch.cat([output_t, self.f_tm1], dim=-1)))
 		i_t = self.activation(self.W_grad(torch.cat([output_t, self.i_tm1], dim=-1)))
 		delta_t = self.momentum * self.delta_tm1 - i_t * grad_t
