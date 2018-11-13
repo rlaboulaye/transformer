@@ -30,7 +30,8 @@ class LSTMOptimizer(nn.Module):
 			self.initialize_theta_0()
 		self.reset_state()
 
-		input_dim = hidden_size + 2
+		# input_dim = hidden_size + 2
+		input_dim = hidden_size + 1
 		self.activation = nn.Sigmoid()
 		self.W_theta = nn.Linear(input_dim, 1, bias=True)
 		self.W_grad = nn.Linear(input_dim, 1, bias=True)
@@ -130,9 +131,11 @@ class LSTMOptimizer(nn.Module):
 		else:
 			output_t, state_t = self.lstm(compressed_grad_t, self.state_tm1)
 		output_t = output_t.squeeze(0)
-		compressed_theta_tm1 = self.attention_theta(self.theta_tm1.view(grad_t.shape + (1,)))
-		f_t = self.activation(self.W_theta(torch.cat([output_t, compressed_theta_tm1, self.f_tm1], dim=-1)))
-		i_t = self.activation(self.W_grad(torch.cat([output_t, compressed_theta_tm1, self.i_tm1], dim=-1)))
+		# compressed_theta_tm1 = self.attention_theta(self.theta_tm1.unsqueeze(-1))
+		# f_t = self.activation(self.W_theta(torch.cat([output_t, compressed_theta_tm1, self.f_tm1], dim=-1)))
+		# i_t = self.activation(self.W_grad(torch.cat([output_t, compressed_theta_tm1, self.i_tm1], dim=-1)))
+		f_t = self.activation(self.W_theta(torch.cat([output_t, self.f_tm1], dim=-1)))
+		i_t = self.activation(self.W_grad(torch.cat([output_t, self.i_tm1], dim=-1)))
 		delta_t = self.momentum * self.delta_tm1 - i_t * grad_t
 		theta_t = f_t * self.theta_tm1 + delta_t
 		self.f_tm1 = f_t

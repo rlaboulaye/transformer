@@ -11,7 +11,7 @@ from meta.mlp import MLP
 
 def train_network(train_set, test_set, num_classes, loss_function, optimizer, meta_optimizer, device, epochs):
 
-    mlp = MLP(X_Y.shape[-1] - 1, num_classes, 1024)
+    mlp = MLP(X_Y.shape[-1] - 1, num_classes, 4096)
     mlp.to(device)
 
     optimizer.initialize_params(mlp, learn_initialization_indices)
@@ -54,6 +54,8 @@ def train_network(train_set, test_set, num_classes, loss_function, optimizer, me
     meta_optimizer.step()
     print('Epoch Test Loss: {}'.format(loss.cpu().item()))
 
+np.random.seed(42)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 meta_epochs = 500
@@ -72,9 +74,9 @@ num_classes = len(set(X_Y[:,:,-1].reshape(-1)))
 
 loss_function = CrossEntropyLoss()
 
-mlp = MLP(X_Y.shape[-1] - 1, num_classes, 1024)
+mlp = MLP(X_Y.shape[-1] - 1, num_classes, 4096)
 
-learn_initialization_indices = [0,1]
+learn_initialization_indices = [0]
 optimizer = StackedOptimizer(mlp, learn_initialization_indices=learn_initialization_indices)
 optimizer.to(device)
 meta_optimizer = Adam(optimizer.parameters(), lr=.001)
