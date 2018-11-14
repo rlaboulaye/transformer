@@ -9,7 +9,7 @@ class LanguageModelHead(nn.Module):
         self.n_embd = cfg['n_embd']
         embed_shape = model.embed.weight.shape
         self.decoder = nn.Linear(embed_shape[1], embed_shape[0], bias=False)
-        self.decoder.weight = model.embed.weight # Tied weights
+        self.decoder.weight = model.embed.weight  # Tied weights
 
     def forward(self, h):
         # Truncated Language modeling logits (we remove the last token)
