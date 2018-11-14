@@ -40,7 +40,7 @@ class LSTMOptimizer(nn.Module):
 		shapes = [param.shape for param in self.local_module._parameters.values() if param is not None]
 		dims = [shape[1] if len(shape) == 2 else 1 for shape in shapes]
 		seq_dim = np.sum(dims)
-		self.attention = Attention(5, seq_dim, num_head, attn_pdrop, resid_pdrop, True)
+		self.attention = Attention(3, seq_dim, num_head, attn_pdrop, resid_pdrop, True)
 		self.initialize_optimizer_params()
 
 	def set_module(self, module):
@@ -123,8 +123,9 @@ class LSTMOptimizer(nn.Module):
 		preprocessed_grad_t = self.preprocess(grad_t)
 		preprocessed_loss_t = self.preprocess(loss_t)
 		preprocessed_theta_tm1 = self.theta_tm1.clone().detach().unsqueeze(-1)
-		preprocessed_input = torch.cat([preprocessed_grad_t, preprocessed_loss_t, preprocessed_theta_tm1], dim=-1)
-		compressed_input = self.attention(preprocessed_input).unsqueeze(0)
+		attention_input = torch.cat([preprocessed_grad_t, preprocessed_theta_tm1], dim=-1)
+		attention_output = self.attention(attention_input)
+		compressed_input = torch.cat([attention_output, preprocessed_loss_t], dim=-1).unsqueeze(0)
 		if self.state_tm1 is None:
 			output_t, state_t = self.lstm(compressed_input)
 		else:
@@ -152,7 +153,7 @@ class LSTMOptimizer(nn.Module):
 				shape += (1,)
 			gradients.append(parameter.grad.clone().detach().view(shape))
 		grad_t = torch.cat(gradients, dim=-1)
-		param_t = self.update_rule(grad_t, grad_t.new_full(grad_t.shape, loss_t.item())).view(-1)
+		param_t = self.update_rule(grad_t, grad_t.new_full((grad_t.shape[0],), loss_t.item())).view(-1)
 		parameters = param_t.split([np.prod(shape) for shape in shapes])
 		for parameter_index, parameter_name in enumerate(module_with_grads._parameters):
 			self.local_module._parameters[parameter_name] = parameters[parameter_index].view(shapes[parameter_index])

@@ -12,7 +12,9 @@ class Attention(nn.Module):
         self.num_head = num_head
         self.split_size = embed_dim
         self.scale = scale
-        self.W_attn = nn.Linear(embed_dim, embed_dim * 3)
+        self.W_query = nn.Linear(embed_dim, embed_dim)
+        self.W_key = nn.Linear(embed_dim, embed_dim)
+        self.W_value = nn.Linear(embed_dim, embed_dim)
         self.W_proj = nn.Linear(embed_dim, embed_dim)
         self.attn_dropout = nn.Dropout(attn_pdrop)
         self.resid_dropout = nn.Dropout(resid_pdrop)
@@ -39,9 +41,9 @@ class Attention(nn.Module):
             return x.permute(0, 2, 1, 3)
 
     def forward(self, x):
-        qkv = self.W_attn(x)
-        query, key, value = qkv.split(self.split_size, dim=2)
-        query = query.mean(dim=-2, keepdim=True)
+        query = self.W_query(x).mean(dim=-2, keepdim=True)
+        key = self.W_key(x)
+        value = self.W_value(x)
         query = self.split_heads(query)
         key = self.split_heads(key, key=True)
         value = self.split_heads(value)
