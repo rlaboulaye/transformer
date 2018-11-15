@@ -21,7 +21,7 @@ def sample_dataset(task_path, name=None, num_datasets=None, max_length=300):
         task["train_file"]["file_type"],
         task["train_file"]["file_header"])
     data = data.sample(frac=1)
-    target = data.columns[task["target"]["column_indices"]][0]
+    target = data.columns[task["target"]["column_index"]]
 
     # Split the dataset without overlap, maintaining class ratios
     if num_datasets is None:
@@ -30,10 +30,12 @@ def sample_dataset(task_path, name=None, num_datasets=None, max_length=300):
     else:
         subsets = split_dataset(data, target, num_datasets=num_datasets)
 
+    task_head, task_tail = os.path.split(task_path)
+
     # If name is not supplied, create a name of the form '{task title}_sampled'
     if name is None:
-        task_head, task_tail = os.path.split(task_path)
         name = task_tail.replace("_task.json", "").replace(".json", "") + "_sampled"
+
 
     # Make a directory for the new task json files inside the current task directory
     task_dir = os.path.join(task_head, name + "_tasks")
@@ -58,8 +60,7 @@ def sample_dataset(task_path, name=None, num_datasets=None, max_length=300):
         sub_task = task.copy()
         sub_task["train_file"]["file_path"] = data_path
         sub_task["train_file"]["file_type"] = "csv"  # all new datasets are csv's
-        sub_task["target"]["num_classes"] = dataframe[
-            target].nunique()  # update in case of a very small class not being included
+        sub_task["target"]["num_classes"] = task["target"]["num_classes"]
         with open(task_path, "w") as fh:
             json.dump(sub_task, fh, indent=4)
 
@@ -93,4 +94,4 @@ def split_dataset(dataframe, target_col, length=None, num_datasets=None):
     return subsets
 
 
-# sample_dataset("/users/guest/m/masonfp/Desktop/transformer/airline_twitter_sentiment/airline_task.json")
+sample_dataset("/users/guest/m/masonfp/Desktop/transformer/schema/airline_task.json", "test")
