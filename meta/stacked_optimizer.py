@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 from .local_model import LocalModel
@@ -41,11 +42,15 @@ class StackedOptimizer(nn.Module):
 			optimizer.initialize_params()
 		self.local_model.copy_params_to(model)
 
-	def forward(self, model_with_grads, loss):
+	def forward(self, model_with_grads, loss, learning_module_index):
 		loss_t = loss.clone().detach().view(-1, 1)
 		modules = [module for module in model_with_grads.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
 		for module_index, module in enumerate(modules):
 			optimizer = self.optimizers[module_index]
-			optimizer(module, loss_t)
+			if learning_module_index == module_index:
+				optimizer(module, loss_t)
+			else:
+				with torch.no_grad():
+					optimizer(module, loss_t)
 		self.local_model.copy_params_to(model_with_grads)
 		return self.local_model.model

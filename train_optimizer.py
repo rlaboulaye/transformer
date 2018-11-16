@@ -36,10 +36,10 @@ def freeze_weights(model, num_layers):
     ###
     for parameter in model.transformer.h[-1].attn.parameters():
         parameter.requires_grad = False
-    for parameter in model.transformer.h[-1].mlp.c_proj.parameters():
-        parameter.requires_grad = False
-    # for parameter in model.transformer.h[-1].mlp.c_fc.parameters():
+    # for parameter in model.transformer.h[-1].mlp.c_proj.parameters():
     #     parameter.requires_grad = False
+    for parameter in model.transformer.h[-1].mlp.c_fc.parameters():
+        parameter.requires_grad = False
     for parameter in model.transformer.h[-1].ln_1.parameters():
         parameter.requires_grad = False
     for parameter in model.transformer.h[-1].ln_2.parameters():
