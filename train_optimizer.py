@@ -38,6 +38,8 @@ def freeze_weights(model, num_layers):
         parameter.requires_grad = False
     for parameter in model.transformer.h[-1].mlp.c_proj.parameters():
         parameter.requires_grad = False
+    # for parameter in model.transformer.h[-1].mlp.c_fc.parameters():
+    #     parameter.requires_grad = False
     for parameter in model.transformer.h[-1].ln_1.parameters():
         parameter.requires_grad = False
     for parameter in model.transformer.h[-1].ln_2.parameters():
@@ -97,11 +99,6 @@ if __name__ == '__main__':
     modules = [module for module in dh_model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
     # learn_initialization_indices = range(len(modules) - 1)
     learn_initialization_indices = []
-
-    print(modules[0]._parameters['w'].shape)
-    print(modules[0]._parameters['b'].shape)
-    import sys
-    sys.exit(0)
 
     optimizer = StackedOptimizer(dh_model, hidden_size=2, learn_initialization_indices=learn_initialization_indices)
     optimizer.to(device)

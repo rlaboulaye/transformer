@@ -164,6 +164,8 @@ def load_openai_pretrained_model(model, n_ctx=-1, n_special=-1, n_transfer=12, n
 				num = int(l[1])
 				pointer = pointer[num]
 		try:
+			if name[-1] == 'w':
+				ip = ip.T
 			assert pointer.shape == ip.shape
 		except AssertionError as e:
 			e.args += (pointer.shape, ip.shape)
