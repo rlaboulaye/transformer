@@ -34,18 +34,18 @@ def freeze_weights(model, num_layers):
         for parameter in layer.parameters():
             parameter.requires_grad = False
     ###
-    for parameter in model.transformer.h[-1].attn.parameters():
-        parameter.requires_grad = False
+    # for parameter in model.transformer.h[-1].attn.parameters():
+    #     parameter.requires_grad = False
+    # for parameter in model.transformer.h[-1].mlp.c_fc.parameters():
+    #     parameter.requires_grad = False
     # for parameter in model.transformer.h[-1].mlp.c_proj.parameters():
     #     parameter.requires_grad = False
-    for parameter in model.transformer.h[-1].mlp.c_fc.parameters():
-        parameter.requires_grad = False
-    for parameter in model.transformer.h[-1].ln_1.parameters():
-        parameter.requires_grad = False
-    for parameter in model.transformer.h[-1].ln_2.parameters():
-        parameter.requires_grad = False
-    for parameter in model.task_head.parameters():
-        parameter.requires_grad = False
+    # for parameter in model.transformer.h[-1].ln_1.parameters():
+    #     parameter.requires_grad = False
+    # for parameter in model.transformer.h[-1].ln_2.parameters():
+    #     parameter.requires_grad = False
+    # for parameter in model.task_head.parameters():
+    #     parameter.requires_grad = False
 
 if __name__ == '__main__':
 
@@ -97,10 +97,9 @@ if __name__ == '__main__':
     dh_model.to(device)
 
     modules = [module for module in dh_model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
-    # learn_initialization_indices = range(len(modules) - 1)
     learn_initialization_indices = []
 
-    optimizer = StackedOptimizer(dh_model, hidden_size=2, learn_initialization_indices=learn_initialization_indices)
+    optimizer = StackedOptimizer(dh_model, learn_initialization_indices=learn_initialization_indices)
     optimizer.to(device)
     meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 
@@ -110,40 +109,42 @@ if __name__ == '__main__':
 
     for meta_epoch in range(meta_config['meta_epochs']):
         verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))
-        # task_path = args.task_directory_path + np.random.choice(tasks)
+        for module_index in range(len(optimizer.optimizers)):
+            verbose_print(verbose, 'Module index {}'.format(module_index))
+            # task_path = args.task_directory_path + np.random.choice(tasks)
 
-        #
-        with open(task_path, 'r') as task_file:
-            task = json.load(task_file)
-        validate_against_schema(task, schema_path='schema/task_schema.json')
-        task_type = task['task_type']
-        train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose)
-        sequence_dim = train_dataloader.dataset.sequence_dim
-        vocab_size = len(text_encoder.encoder) + sequence_dim
-        
-        dh_model = DoubleHeadModel(config, text_encoder.classify_token, task, vocab_size, sequence_dim)
-        load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3, verbose=verbose)
-        freeze_weights(dh_model, num_layers=11)
-        dh_model.to(device)
+            #
+            with open(task_path, 'r') as task_file:
+                task = json.load(task_file)
+            validate_against_schema(task, schema_path='schema/task_schema.json')
+            task_type = task['task_type']
+            train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose)
+            sequence_dim = train_dataloader.dataset.sequence_dim
+            vocab_size = len(text_encoder.encoder) + sequence_dim
+            
+            dh_model = DoubleHeadModel(config, text_encoder.classify_token, task, vocab_size, sequence_dim)
+            load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3, verbose=verbose)
+            freeze_weights(dh_model, num_layers=11)
+            dh_model.to(device)
 
-        optimizer.initialize_params(dh_model, learn_initialization_indices)
-        optimizer.reset_state()
+            optimizer.initialize_params(dh_model, learn_initialization_indices)
+            optimizer.reset_state()
 
-        for x, m, y in get_iterator(train_dataloader, verbose):
-            lm_logits, task_logits = dh_model(x)
-            double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, config['lm_coef'], 1.)
-            dh_model.zero_grad()
-            double_head_loss.backward()
-            tuned_dh_model = optimizer(dh_model, double_head_loss)
-        losses = []
-        for x, m, y in get_iterator(validation_dataloader, verbose):
-            lm_logits, task_logits = tuned_dh_model(x)
-            double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, config['lm_coef'], 1.)
-            losses.append(double_head_loss)
-        losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
-        loss = losses.mean(-1)
-        meta_optimizer.zero_grad()
-        loss.backward()
-        meta_optimizer.step()
-        print('Epoch Test Loss: {}'.format(loss.cpu().item()))
-        #
+            for x, m, y in get_iterator(train_dataloader, verbose):
+                lm_logits, task_logits = dh_model(x)
+                double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, config['lm_coef'], 1.)
+                dh_model.zero_grad()
+                double_head_loss.backward()
+                tuned_dh_model = optimizer(dh_model, double_head_loss, module_index)
+            losses = []
+            for x, m, y in get_iterator(validation_dataloader, verbose):
+                lm_logits, task_logits = tuned_dh_model(x)
+                double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, config['lm_coef'], 1.)
+                losses.append(double_head_loss)
+            losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
+            loss = losses.mean(-1)
+            meta_optimizer.zero_grad()
+            loss.backward()
+            meta_optimizer.step()
+            print('Epoch Test Loss: {}'.format(loss.cpu().item()))
+            #
