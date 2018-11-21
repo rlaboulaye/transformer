@@ -107,13 +107,15 @@ if __name__ == '__main__':
     task_criterion = nn.CrossEntropyLoss(reduction='none')
     #
 
+    test_losses = []
     for meta_epoch in range(meta_config['meta_epochs']):
-        verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))
+        # verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))
+        print('Running meta-epoch {}'.format(meta_epoch))
         for module_index in range(len(optimizer.optimizers)):
-            verbose_print(verbose, 'Module index {}'.format(module_index))
-            # task_path = args.task_directory_path + np.random.choice(tasks)
+            # verbose_print(verbose, 'Module index {}'.format(module_index))
+            print('Module index {}'.format(module_index))
+            task_path = args.task_directory_path + np.random.choice(tasks)
 
-            #
             with open(task_path, 'r') as task_file:
                 task = json.load(task_file)
             validate_against_schema(task, schema_path='schema/task_schema.json')
@@ -146,5 +148,7 @@ if __name__ == '__main__':
             meta_optimizer.zero_grad()
             loss.backward()
             meta_optimizer.step()
-            print('Epoch Test Loss: {}'.format(loss.cpu().item()))
-            #
+            test_loss = loss.cpu().item()
+            test_losses.append(test_loss)
+            print('Epoch Test Loss: {}'.format(test_loss))
+            print('Mean Test Loss (last 20): {}'.format(np.mean(test_losses[-20:])))
