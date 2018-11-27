@@ -24,13 +24,13 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	validation_documents_dataframe, _ = create_documents(validation_dataframe, raw_documents, text_encoder, verbose, sequence_dim)
 	test_documents_dataframe, _ = create_documents(test_dataframe, raw_documents, text_encoder, verbose, sequence_dim)
 
-	if sequence_dim is None:
-		max_sequence_length = max(
-			max([train_documents_dataframe[column].apply(lambda x: len(x)).max() for column in train_documents_dataframe.columns]),
-			max([validation_documents_dataframe[column].apply(lambda x: len(x)).max() for column in validation_documents_dataframe.columns]),
-			max([test_documents_dataframe[column].apply(lambda x: len(x)).max() for column in test_documents_dataframe.columns]))
-	else:
-		max_sequence_length = sequence_dim
+	max_sequence_length = max(
+		max([train_documents_dataframe[column].apply(lambda x: len(x)).max() for column in train_documents_dataframe.columns]),
+		max([validation_documents_dataframe[column].apply(lambda x: len(x)).max() for column in validation_documents_dataframe.columns]),
+		max([test_documents_dataframe[column].apply(lambda x: len(x)).max() for column in test_documents_dataframe.columns]))
+	if sequence_dim is not None:
+		max_sequence_length = min(sequence_dim, max_sequence_length)
+	print(max_sequence_length)
 
 	train_document_matrix, train_mask_matrix = get_document_matrix(train_documents_dataframe, max_sequence_length)
 	train_matrices = (train_document_matrix, train_mask_matrix)
@@ -57,8 +57,8 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	validation_set = Dataset(device, target_type, vocab_size, *validation_matrices)
 	test_set = Dataset(device, target_type, vocab_size, *test_matrices)
 	data_params = {
-			'batch_size': batch_size,
-			'shuffle': True
+		'batch_size': batch_size,
+		'shuffle': True
 	}
 	return data.DataLoader(train_set, **data_params), data.DataLoader(validation_set, **data_params), data.DataLoader(test_set, **data_params), document_structure
 
@@ -150,7 +150,7 @@ def create_one_to_many_document(dataframe, primary_doc, secondary_docs, text_enc
 	common_column_name = documents_dataframe.columns[0]
 
 	if sequence_dim is not None:
-		num_tokens = 4
+		num_tokens = 3
 		max_len = sequence_dim - num_tokens
 		documents_dataframe['scale'] = pd.Series(
 			documents_dataframe.apply(lambda x: max_len / (len(x[0]) + max([len(y) for y in x[1:]])), axis=1),
