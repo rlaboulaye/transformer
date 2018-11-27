@@ -124,7 +124,7 @@ def create_one_document(dataframe, document, text_encoder, verbose, sequence_dim
 	num_tokens = 2
 	doc_length = sequence_dim - num_tokens if sequence_dim is not None else None
 	return document_dataframe.progress_apply(
-		lambda x: [text_encoder.start_token] + x[:doc_length] + [text_encoder.classify_token], axis=1), "one"
+		lambda x: pd.Series([[text_encoder.start_token] + x[0][:doc_length] + [text_encoder.classify_token]]), axis=1), "one"
 
 
 def create_one_to_one_document(dataframe, doc1, doc2, text_encoder, verbose, sequence_dim):
