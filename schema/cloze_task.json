@@ -1,6 +1,6 @@
 {
 	"$schema": "task_schema.json",
-	"task_type": "MultipleChoice",
+	"task_type": "MultipleChoiceQuestion",
 	"train_file": {
 		"file_path": "/users/grads/r/rdalbest/Documents/cloze/cloze_test_val__spring2016 - cloze_test_ALL_val.csv",
 		"file_type": "csv",
@@ -11,8 +11,8 @@
 		"file_type": "csv",
 		"file_header": true
 	},
-	"document_list"	: [
-		{
+	"documents": {
+		"primary_document": {
 			"column_indices": [
 				1,
 				2,
@@ -20,20 +20,22 @@
 				4
 			]
 		},
-		{
-			"column_indices": [
-				5
-			]
-		},
-		{
-			"column_indices": [
-				6
-			]
-		}
-	],
-	"target": {
-		"column_indices": [
-			7
+		"associated_documents": [
+			{
+				"column_indices": [
+					5
+				]
+			},
+			{
+				"column_indices": [
+					6
+				]
+			}
 		]
+	},
+	"target": {
+		"column_index": 7,
+		"target_type": "classification",
+		"num_classes": 2
 	}
 }

@@ -1,21 +1,28 @@
 {
 	"$schema": "task_schema.json",
-	"task_type": "Sentiment",
+	"task_type": "Comparison",
 	"train_file": {
-		"file_path": "/users/data/d3m/datasets/training_datasets/LL1/LL1_global_warming_sentiment/LL1_global_warming_sentiment_dataset/tables/learningData.csv",
+		"file_path": "/users/data/metanlp/nlp_datasets/related_sentences/sentence_pairs_entailment.csv",
 		"file_type": "csv",
 		"file_header": true
 	},
 	"documents"	: {
 		"primary_document": {
 			"column_indices": [
-				1
+				0
 			]
-		}
+		},
+		"associated_documents": [
+			{
+				"column_indices": [
+					1
+				]
+			}
+		]
 	},
 	"target": {
 		"column_index": 2,
 		"target_type": "classification",
-		"num_classes": 2
+		"num_classes": 3
 	}
 }

@@ -18,10 +18,11 @@ class Transformer(nn.Module):
         nn.init.normal_(self.embed.weight, std=0.02)
 
     def forward(self, x):
+        # Combine batch size and number of documents
         x = x.view(-1, x.size(-2), x.size(-1))
-        e = self.embed(x)
+        embedding = self.embed(x)
         # Add the position information to the input embeddings
-        h = e.sum(dim=2)
+        encoding = embedding.sum(dim=2)
         for block in self.h:
-            h = block(h)
-        return h
+            encoding = block(encoding)
+        return encoding

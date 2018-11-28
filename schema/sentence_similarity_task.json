@@ -1,17 +1,24 @@
 {
 	"$schema": "task_schema.json",
-	"task_type": "Sentiment",
+	"task_type": "Comparison",
 	"train_file": {
-		"file_path": "/users/data/metanlp/nlp_datasets/airline_twitter_sentiment/airline_twitter_sentiment.csv",
+		"file_path": "/users/data/metanlp/nlp_datasets/related_sentences/sentence_pairs_similarity.csv",
 		"file_type": "csv",
 		"file_header": true
 	},
 	"documents"	: {
 		"primary_document": {
 			"column_indices": [
-				1
+				0
 			]
-		}
+		},
+		"associated_documents": [
+			{
+				"column_indices": [
+					1
+				]
+			}
+		]
 	},
 	"target": {
 		"column_index": 2,
