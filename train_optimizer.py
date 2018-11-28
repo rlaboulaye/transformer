@@ -22,7 +22,7 @@ from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
 from opt import OpenAIAdam
-from loss import compute_double_head_loss, compute_accuracy
+from evaluate import Evaluator
 from train import load_openai_pretrained_model
 #
 
@@ -88,11 +88,12 @@ if __name__ == '__main__':
         task = json.load(task_file)
     validate_against_schema(task, schema_path='schema/task_schema.json')
     task_type = task['task_type']
-    train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose)
+    train_dataloader, validation_dataloader, test_dataloader, document_structure = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose, sequence_dim=config['sequence_dim'])
     sequence_dim = train_dataloader.dataset.sequence_dim
+    num_output = task['target']['num_classes'] if not document_structure == 'one_to_many' else 1
     vocab_size = len(text_encoder.encoder) + sequence_dim
     
-    dh_model = DoubleHeadModel(config, text_encoder.classify_token, task, vocab_size, sequence_dim)
+    dh_model = DoubleHeadModel(config, text_encoder.classify_token, num_output, vocab_size, sequence_dim)
     freeze_weights(dh_model, num_layers=11)
     dh_model.to(device)
 
@@ -104,7 +105,6 @@ if __name__ == '__main__':
     meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 
     lm_criterion = nn.CrossEntropyLoss(reduction='none')
-    task_criterion = nn.CrossEntropyLoss(reduction='none')
     #
 
     test_losses = []
@@ -115,16 +115,25 @@ if __name__ == '__main__':
             # verbose_print(verbose, 'Module index {}'.format(module_index))
             print('Module index {}'.format(module_index))
             task_path = args.task_directory_path + np.random.choice(tasks)
+            print(os.path.basename(task_path))
 
             with open(task_path, 'r') as task_file:
                 task = json.load(task_file)
             validate_against_schema(task, schema_path='schema/task_schema.json')
             task_type = task['task_type']
-            train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose)
+            train_dataloader, validation_dataloader, test_dataloader, document_structure = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose, sequence_dim=config['sequence_dim'])
             sequence_dim = train_dataloader.dataset.sequence_dim
+            num_output = task['target']['num_classes'] if not document_structure == 'one_to_many' else 1
             vocab_size = len(text_encoder.encoder) + sequence_dim
             
-            dh_model = DoubleHeadModel(config, text_encoder.classify_token, task, vocab_size, sequence_dim)
+            target_type = task['target']['target_type']
+            if target_type == 'classification':
+                task_criterion = nn.CrossEntropyLoss(reduction='none')
+            elif target_type == 'regression':
+                task_criterion = nn.MSELoss(reduction='none')
+            evaluator = Evaluator(lm_criterion, task_criterion, config['lm_coef'], 1., target_type)
+
+            dh_model = DoubleHeadModel(config, text_encoder.classify_token, num_output, vocab_size, sequence_dim)
             load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3, verbose=verbose)
             freeze_weights(dh_model, num_layers=11)
             dh_model.to(device)
@@ -134,15 +143,18 @@ if __name__ == '__main__':
 
             for x, m, y in get_iterator(train_dataloader, verbose):
                 lm_logits, task_logits = dh_model(x)
-                double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, config['lm_coef'], 1.)
+                double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
                 dh_model.zero_grad()
                 double_head_loss.backward()
                 tuned_dh_model = optimizer(dh_model, double_head_loss, module_index)
             losses = []
+            accuracies = []
             for x, m, y in get_iterator(validation_dataloader, verbose):
                 lm_logits, task_logits = tuned_dh_model(x)
-                double_head_loss, task_loss, lm_loss = compute_double_head_loss(x, y, m, lm_logits, task_logits, lm_criterion, task_criterion, config['lm_coef'], 1.)
+                double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
+                accuracy = evaluator.compute_score(y, task_logits)
                 losses.append(double_head_loss)
+                accuracies.append(accuracy.cpu().item())
             losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
             loss = losses.mean(-1)
             meta_optimizer.zero_grad()
@@ -150,5 +162,7 @@ if __name__ == '__main__':
             meta_optimizer.step()
             test_loss = loss.cpu().item()
             test_losses.append(test_loss)
+            test_accuracy = np.mean(accuracies)
+            print('Epoch Test Accuracy: {}'.format(test_accuracy))
             print('Epoch Test Loss: {}'.format(test_loss))
             print('Mean Test Loss (last 20): {}'.format(np.mean(test_losses[-20:])))

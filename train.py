@@ -218,12 +218,11 @@ if __name__ == '__main__':
 
     if target_type == 'classification':
         task_criterion = nn.CrossEntropyLoss(reduction='none')
-        evaluator = Evaluator(lm_criterion, task_criterion, config['lm_coef'], 1., target_type)
     elif target_type == 'regression':
         task_criterion = nn.MSELoss(reduction='none')
-        evaluator = Evaluator(lm_criterion, task_criterion, config['lm_coef'], 1., target_type)
     else:
         raise NotImplementedError()
+    evaluator = Evaluator(lm_criterion, task_criterion, config['lm_coef'], 1., target_type)
 
     if config['opt'] == 'adam':
         model_opt = Adam(dh_model.parameters(),
