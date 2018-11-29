@@ -199,8 +199,9 @@ if __name__ == '__main__':
     text_encoder = TextEncoder(config['encoder_path'], config['bpe_path'])
     train_dataloader, validation_dataloader, test_dataloader, document_structure = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose, sequence_dim=config['sequence_dim'])
 
+    max_position_encoding = train_dataloader.dataset.max_position_encoding
     sequence_dim = train_dataloader.dataset.sequence_dim
-    vocab_size = len(text_encoder.encoder) + sequence_dim
+    vocab_size = len(text_encoder.encoder) + max_position_encoding
     num_output = task['target']['num_classes'] if not document_structure == 'one_to_many' else 1
     dh_model = DoubleHeadModel(config, text_encoder.classify_token, num_output, vocab_size, sequence_dim)
 

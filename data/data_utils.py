@@ -30,7 +30,6 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 		max([test_documents_dataframe[column].apply(lambda x: len(x)).max() for column in test_documents_dataframe.columns]))
 	if sequence_dim is not None:
 		max_sequence_length = min(sequence_dim, max_sequence_length)
-	print(max_sequence_length)
 
 	train_document_matrix, train_mask_matrix = get_document_matrix(train_documents_dataframe, max_sequence_length)
 	train_matrices = (train_document_matrix, train_mask_matrix)

@@ -5,14 +5,18 @@ from torch.utils import data
 
 class Dataset(data.Dataset):
 
-	def __init__(self, device, target_type, vocab_size, instances, masks, targets=None):
+	def __init__(self, device, target_type, vocab_size, instances, masks, targets=None, max_position_encoding=512):
 		self.device = device
 		self.task_type = target_type
 		self.instances = instances
 		self.masks = masks
 		self.targets = targets
 		self.sequence_dim = self.instances.shape[-1]
-		self.X_positions = np.arange(vocab_size, vocab_size + self.sequence_dim)
+		self.max_position_encoding = min(self.sequence_dim, max_position_encoding)
+		self.X_positions = np.arange(vocab_size, vocab_size + self.max_position_encoding)
+		while self.X_positions.shape[0] < self.sequence_dim:
+			self.X_positions = np.concatenate([self.X_positions,
+				np.arange(vocab_size, vocab_size + min(self.sequence_dim - self.X_positions.shape[0], max_position_encoding))], 0)
 		if target_type == "regression":
 			self.target_dtype = torch.float32
 		else:
