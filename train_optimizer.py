@@ -3,28 +3,17 @@ import json
 import argparse
 
 import numpy as np
-from torch.optim import Adam
+import torch
+from torch import nn
+from torch.optim import SGD, Adam
 
 from meta.stacked_optimizer import StackedOptimizer
 from utils import set_seed, get_device, validate_against_schema, get_iterator, verbose_print
-
-#
-import math
-
-import numpy as np
-from scipy.stats import mode
-import torch
-from torch import nn
-from torch.optim import Adam, SGD
-
-from logger import Logger
 from data.text_encoder import TextEncoder
 from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
-from opt import OpenAIAdam
 from evaluate import Evaluator
 from train import load_openai_pretrained_model
-#
 
 
 def freeze_weights(model, num_layers):
@@ -33,6 +22,34 @@ def freeze_weights(model, num_layers):
     for layer in model.transformer.h[:num_layers]:
         for parameter in layer.parameters():
             parameter.requires_grad = False
+
+def get_document(config_path, schema_path):
+    with open(config_path, 'r') as config_file:
+        config = json.load(config_file)
+    validate_against_schema(config, schema_path=schema_path)
+    return config
+
+def prepare_experiment(config, task, text_encoder, device, verbose):
+    train_dataloader, validation_dataloader, test_dataloader, document_structure = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose, sequence_dim=config['sequence_dim'])
+    max_position_encoding = train_dataloader.dataset.max_position_encoding
+    sequence_dim = train_dataloader.dataset.sequence_dim
+    vocab_size = len(text_encoder.encoder) + max_position_encoding
+    num_output = task['target']['num_classes'] if not document_structure == 'one_to_many' else 1
+    
+    target_type = task['target']['target_type']
+    if target_type == 'classification':
+        task_criterion = nn.CrossEntropyLoss(reduction='none')
+    elif target_type == 'regression':
+        task_criterion = nn.MSELoss(reduction='none')
+    lm_criterion = nn.CrossEntropyLoss(reduction='none')
+    evaluator = Evaluator(lm_criterion, task_criterion, config['lm_coef'], 1., target_type)
+
+    dh_model = DoubleHeadModel(config, text_encoder.classify_token, num_output, vocab_size, sequence_dim)
+    load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3, verbose=verbose)
+    dh_model.to(device)
+
+    return dh_model, (train_dataloader, validation_dataloader, test_dataloader), evaluator
+
 
 if __name__ == '__main__':
 
@@ -46,15 +63,8 @@ if __name__ == '__main__':
     if verbose:
         verbose_print(verbose, vars(args))
 
-    meta_config_path = args.config_path
-    with open(meta_config_path, 'r') as meta_config_file:
-        meta_config = json.load(meta_config_file)
-    validate_against_schema(meta_config, schema_path='schema/train_optimizer_config_schema.json')
-
-    config_path = meta_config['train_config_path']
-    with open(config_path, 'r') as config_file:
-        config = json.load(config_file)
-    validate_against_schema(config, schema_path='schema/train_config_schema.json')
+    meta_config = get_document(args.config_path, 'schema/train_optimizer_config_schema.json')
+    config = get_document(meta_config['train_config_path'], 'schema/train_config_schema.json')
 
     set_seed(meta_config['seed'])
     device = get_device(verbose)
@@ -63,28 +73,15 @@ if __name__ == '__main__':
     tasks = os.listdir(args.task_directory_path)
 
     task_path = args.task_directory_path + np.random.choice(tasks)
-    with open(task_path, 'r') as task_file:
-        task = json.load(task_file)
-    validate_against_schema(task, schema_path='schema/task_schema.json')
-    task_type = task['task_type']
-    train_dataloader, validation_dataloader, test_dataloader, document_structure = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose, sequence_dim=config['sequence_dim'])
-    max_position_encoding = train_dataloader.dataset.max_position_encoding
-    sequence_dim = train_dataloader.dataset.sequence_dim
-    vocab_size = len(text_encoder.encoder) + max_position_encoding
-    num_output = task['target']['num_classes'] if not document_structure == 'one_to_many' else 1
-    
-    dh_model = DoubleHeadModel(config, text_encoder.classify_token, num_output, vocab_size, sequence_dim)
+    task = get_document(task_path, 'schema/task_schema.json')
+    dh_model, dataloaders, evaluator = prepare_experiment(config, task, text_encoder, device, verbose)
+    train_dataloader, validation_dataloader, test_dataloader = dataloaders
     freeze_weights(dh_model, num_layers=11)
-    dh_model.to(device)
 
-    modules = [module for module in dh_model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
     learn_initialization_indices = []
-
     optimizer = StackedOptimizer(dh_model, learn_initialization_indices=learn_initialization_indices)
     optimizer.to(device)
     meta_optimizer = Adam(optimizer.parameters(), lr=meta_config['meta_lr'])
-
-    lm_criterion = nn.CrossEntropyLoss(reduction='none')
 
     test_losses = []
     for meta_epoch in range(meta_config['meta_epochs']):
@@ -93,30 +90,13 @@ if __name__ == '__main__':
         for module_index in range(len(optimizer.optimizers)):
             # verbose_print(verbose, 'Module index {}'.format(module_index))
             print('Module index {}'.format(module_index))
+
             task_path = args.task_directory_path + np.random.choice(tasks)
             print(os.path.basename(task_path))
-
-            with open(task_path, 'r') as task_file:
-                task = json.load(task_file)
-            validate_against_schema(task, schema_path='schema/task_schema.json')
-            task_type = task['task_type']
-            train_dataloader, validation_dataloader, test_dataloader, document_structure = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose, sequence_dim=config['sequence_dim'])
-            max_position_encoding = train_dataloader.dataset.max_position_encoding
-            sequence_dim = train_dataloader.dataset.sequence_dim
-            vocab_size = len(text_encoder.encoder) + max_position_encoding
-            num_output = task['target']['num_classes'] if not document_structure == 'one_to_many' else 1
-            
-            target_type = task['target']['target_type']
-            if target_type == 'classification':
-                task_criterion = nn.CrossEntropyLoss(reduction='none')
-            elif target_type == 'regression':
-                task_criterion = nn.MSELoss(reduction='none')
-            evaluator = Evaluator(lm_criterion, task_criterion, config['lm_coef'], 1., target_type)
-
-            dh_model = DoubleHeadModel(config, text_encoder.classify_token, num_output, vocab_size, sequence_dim)
-            load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3, verbose=verbose)
+            task = get_document(task_path, 'schema/task_schema.json')
+            dh_model, dataloaders, evaluator = prepare_experiment(config, task, text_encoder, device, verbose)
+            train_dataloader, validation_dataloader, test_dataloader = dataloaders
             freeze_weights(dh_model, num_layers=11)
-            dh_model.to(device)
 
             optimizer.initialize_params(dh_model, learn_initialization_indices)
             optimizer.reset_state()
