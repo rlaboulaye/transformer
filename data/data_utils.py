@@ -225,7 +225,6 @@ def create_multiple_choice_documents(documents_dataframe, sequence_dim, text_enc
 
 	return pd.concat(multiple_choice_documents, axis=1)
 
-
 def split_dataframe(dataframe, split=.2):
 	split_df2 = dataframe.sample(frac=split, replace=False)
 	split_df1 = dataframe.drop(split_df2.index)

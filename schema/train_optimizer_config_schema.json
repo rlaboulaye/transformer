@@ -17,6 +17,14 @@
             "type": "number",
             "description": "The learning rate for the meta optimizer"
         },
+        "meta_test_split": {
+            "type": "number",
+            "description": "The proportion of tasks to be held out for test"
+        },
+        "meta_validation_split": {
+            "type": "number",
+            "description": "The proportion of train tasks to be held out for validation"
+        },
         "meta_epochs": {
             "type": "integer",
             "description": "The number of training epochs for the optimizer"
@@ -43,6 +51,12 @@
         "meta_lr": {
             "$ref": "#/definitions/meta_lr"
         },
+        "meta_test_split": {
+            "$ref": "#/definitions/meta_test_split"
+        },
+        "meta_validation_split": {
+            "$ref": "#/definitions/meta_validation_split"
+        },
         "meta_epochs": {
             "$ref": "#/definitions/meta_epochs"
         },
@@ -56,6 +70,8 @@
     "required": [
         "train_config_path",
         "meta_lr",
+        "meta_test_split",
+        "meta_validation_split",
         "meta_epochs",
         "seed"
     ]

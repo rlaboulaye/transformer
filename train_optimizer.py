@@ -71,8 +71,13 @@ if __name__ == '__main__':
 
     text_encoder = TextEncoder(config['encoder_path'], config['bpe_path'])
     tasks = os.listdir(args.task_directory_path)
+    meta_config['meta_test_split']
+    meta_config['meta_validation_split']
+    test_tasks_size = round(len(tasks) * meta_config['meta_test_split'])
+    validation_tasks_size = round((len(tasks) - test_tasks_size) * meta_config['meta_validation_split'])
+    test_tasks, validation_tasks, train_tasks = np.split(tasks, [test_tasks_size, test_tasks_size + validation_tasks_size])
 
-    task_path = args.task_directory_path + np.random.choice(tasks)
+    task_path = args.task_directory_path + np.random.choice(train_tasks)
     task = get_document(task_path, 'schema/task_schema.json')
     dh_model, dataloaders, evaluator = prepare_experiment(config, task, text_encoder, device, verbose)
     train_dataloader, validation_dataloader, test_dataloader = dataloaders
@@ -91,7 +96,7 @@ if __name__ == '__main__':
             # verbose_print(verbose, 'Module index {}'.format(module_index))
             print('Module index {}'.format(module_index))
 
-            task_path = args.task_directory_path + np.random.choice(tasks)
+            task_path = args.task_directory_path + np.random.choice(train_tasks)
             print(os.path.basename(task_path))
             task = get_document(task_path, 'schema/task_schema.json')
             dh_model, dataloaders, evaluator = prepare_experiment(config, task, text_encoder, device, verbose)
