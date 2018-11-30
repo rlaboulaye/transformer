@@ -24,6 +24,10 @@
         "base_epochs": {
             "type": "integer",
             "description": "The number of training epochs for the base model"
+        },
+        "seed": {
+            "type": "integer",
+            "description": "The random seed"
         }
     },
     "properties": {
@@ -44,14 +48,15 @@
         },
         "base_epochs": {
             "$ref": "#/definitions/base_epochs"
+        },
+        "seed": {
+            "$ref": "#/definitions/seed"
         }
     },
     "required": [
         "train_config_path",
-        "keep_coef_init",
-        "lr_init",
         "meta_lr",
         "meta_epochs",
-        "base_epochs"
+        "seed"
     ]
 }

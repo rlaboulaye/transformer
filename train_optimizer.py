@@ -33,19 +33,6 @@ def freeze_weights(model, num_layers):
     for layer in model.transformer.h[:num_layers]:
         for parameter in layer.parameters():
             parameter.requires_grad = False
-    ###
-    # for parameter in model.transformer.h[-1].attn.parameters():
-    #     parameter.requires_grad = False
-    # for parameter in model.transformer.h[-1].mlp.c_fc.parameters():
-    #     parameter.requires_grad = False
-    # for parameter in model.transformer.h[-1].mlp.c_proj.parameters():
-    #     parameter.requires_grad = False
-    # for parameter in model.transformer.h[-1].ln_1.parameters():
-    #     parameter.requires_grad = False
-    # for parameter in model.transformer.h[-1].ln_2.parameters():
-    #     parameter.requires_grad = False
-    # for parameter in model.task_head.parameters():
-    #     parameter.requires_grad = False
 
 if __name__ == '__main__':
 
@@ -72,26 +59,19 @@ if __name__ == '__main__':
     set_seed(meta_config['seed'])
     device = get_device(verbose)
 
-    # initialize language model
-
-    # task_head = None
-    # optimizer = StackedOptimizer(task_head)
-    # optimizer.to(device)
-    # meta_optimizer = Adam(optimizer.parameters(), lr=meta_config['meta_lr'])
-
     text_encoder = TextEncoder(config['encoder_path'], config['bpe_path'])
     tasks = os.listdir(args.task_directory_path)
 
-    #
     task_path = args.task_directory_path + np.random.choice(tasks)
     with open(task_path, 'r') as task_file:
         task = json.load(task_file)
     validate_against_schema(task, schema_path='schema/task_schema.json')
     task_type = task['task_type']
     train_dataloader, validation_dataloader, test_dataloader, document_structure = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose, sequence_dim=config['sequence_dim'])
+    max_position_encoding = train_dataloader.dataset.max_position_encoding
     sequence_dim = train_dataloader.dataset.sequence_dim
+    vocab_size = len(text_encoder.encoder) + max_position_encoding
     num_output = task['target']['num_classes'] if not document_structure == 'one_to_many' else 1
-    vocab_size = len(text_encoder.encoder) + sequence_dim
     
     dh_model = DoubleHeadModel(config, text_encoder.classify_token, num_output, vocab_size, sequence_dim)
     freeze_weights(dh_model, num_layers=11)
@@ -102,10 +82,9 @@ if __name__ == '__main__':
 
     optimizer = StackedOptimizer(dh_model, learn_initialization_indices=learn_initialization_indices)
     optimizer.to(device)
-    meta_optimizer = Adam(optimizer.parameters(), lr=.001)
+    meta_optimizer = Adam(optimizer.parameters(), lr=meta_config['meta_lr'])
 
     lm_criterion = nn.CrossEntropyLoss(reduction='none')
-    #
 
     test_losses = []
     for meta_epoch in range(meta_config['meta_epochs']):
@@ -122,9 +101,10 @@ if __name__ == '__main__':
             validate_against_schema(task, schema_path='schema/task_schema.json')
             task_type = task['task_type']
             train_dataloader, validation_dataloader, test_dataloader, document_structure = get_dataloaders(task, text_encoder, config['test_split'], config['validation_split'], config['batch_size'], device, verbose, sequence_dim=config['sequence_dim'])
+            max_position_encoding = train_dataloader.dataset.max_position_encoding
             sequence_dim = train_dataloader.dataset.sequence_dim
+            vocab_size = len(text_encoder.encoder) + max_position_encoding
             num_output = task['target']['num_classes'] if not document_structure == 'one_to_many' else 1
-            vocab_size = len(text_encoder.encoder) + sequence_dim
             
             target_type = task['target']['target_type']
             if target_type == 'classification':
