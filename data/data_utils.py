@@ -24,10 +24,9 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	validation_documents_dataframe, _ = create_documents(validation_dataframe, raw_documents, text_encoder, verbose, sequence_dim)
 	test_documents_dataframe, _ = create_documents(test_dataframe, raw_documents, text_encoder, verbose, sequence_dim)
 
-	max_sequence_length = max(
-		max([train_documents_dataframe[column].apply(lambda x: len(x)).max() for column in train_documents_dataframe.columns]),
-		max([validation_documents_dataframe[column].apply(lambda x: len(x)).max() for column in validation_documents_dataframe.columns]),
-		max([test_documents_dataframe[column].apply(lambda x: len(x)).max() for column in test_documents_dataframe.columns]))
+	data_profile = profile_dataset(train_documents_dataframe, validation_documents_dataframe, test_documents_dataframe)
+
+	max_sequence_length = int(data_profile['max'])
 	if sequence_dim is not None:
 		max_sequence_length = min(sequence_dim, max_sequence_length)
 
@@ -230,3 +229,18 @@ def split_dataframe(dataframe, split=.2):
 	split_df2 = dataframe.sample(frac=split, replace=False)
 	split_df1 = dataframe.drop(split_df2.index)
 	return split_df1, split_df2
+
+
+def profile_dataset(*dataframes, **options):
+	len_df = pd.concat(dataframes, axis=0).applymap(lambda x: len(x))
+	lengths = pd.Series(pd.concat([len_df[column] for column in len_df.columns]))
+
+	ddof = 1 if len(lengths) > 1 else 0
+	dist_mean = np.mean(lengths)
+	dist_stdev = np.std(lengths, ddof=ddof)
+	dist_min, dist_quartile1, dist_quartile2, dist_quartile3, dist_max = np.percentile(lengths, [0, 25, 50, 75, 100])
+	fence = (1.5 * (dist_quartile3 - dist_quartile1)) + dist_quartile3
+	n_outliers = sum(lengths > fence)
+
+	return {'mean': dist_mean, 'stdev': dist_stdev, 'min': dist_min, 'q1': dist_quartile1, 'q2': dist_quartile2,
+			'q3': dist_quartile3, 'max': dist_max, 'n_outliers': n_outliers}

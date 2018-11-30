@@ -36,7 +36,6 @@ def sample_dataset(task_path, name=None, num_datasets=None, max_length=300):
     if name is None:
         name = task_tail.replace("_task.json", "").replace(".json", "") + "_sampled"
 
-
     # Make a directory for the new task json files inside the current task directory
     task_dir = os.path.join(task_head, name + "_tasks")
     if not os.path.exists(task_dir):
@@ -94,4 +93,5 @@ def split_dataset(dataframe, target_col, length=None, num_datasets=None):
     return subsets
 
 
-sample_dataset("/users/guest/m/masonfp/Desktop/transformer/schema/airline_task.json", "test")
+if __name__ == "__main__":
+    sample_dataset("/users/data/metanlp/nlp_datasets/sentiment_deflategate/deflategate_task.json")

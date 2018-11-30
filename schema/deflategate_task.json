@@ -1,22 +1,21 @@
 {
 	"$schema": "task_schema.json",
-	"task_type": "DocumentClassification",
+	"task_type": "Sentiment",
 	"train_file": {
 		"file_path": "/users/data/d3m/datasets/training_datasets/LL1/LL1_sentiment_deflategate/LL1_sentiment_deflategate_dataset/tables/learningData.csv",
 		"file_type": "csv",
 		"file_header": true
 	},
-	"document_list"	: [
-		{
+	"documents"	: {
+		"primary_document": {
 			"column_indices": [
 				1
 			]
 		}
-	],
+	},
 	"target": {
-		"column_indices": [
-			2
-		],
+		"column_index": 2,
+		"target_type": "classification",
 		"num_classes": 6
 	}
 }
