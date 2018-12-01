@@ -14,6 +14,7 @@ from data.data_utils import get_dataloaders
 from model.double_head_model import DoubleHeadModel
 from evaluate import Evaluator
 from train import load_openai_pretrained_model
+from meta_logger import MetaLogger
 
 
 def no_grad(module):
@@ -136,6 +137,84 @@ def test_epoch(dh_model, dataloader, evaluator, verbose):
     accuracy = np.mean(accuracies)
     return loss, accuracy
 
+def meta_train_epoch(logger, optimizer, tasks, config, meta_config, text_encoder, device, verbose):
+    verbose_print(verbose, 'Training')
+    accuracies = []
+    losses = []
+    for path in tasks:
+        verbose_print(verbose, 'Task {}'.format(path))
+        for module_index in range(len(optimizer.optimizers)):
+            verbose_print(verbose, 'Module index {}'.format(module_index))
+            task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
+            loss, accuracy = meta_train_instance(optimizer, task, module_index, config, meta_config, text_encoder, device, verbose)
+            accuracies.append(accuracy)
+            losses.append(loss)
+            verbose_print(verbose, 'Base Epoch Test Accuracy: {}'.format(accuracy))
+            verbose_print(verbose, 'Base Epoch Test Loss: {}'.format(loss))
+    train_accuracy = np.mean(accuracies)
+    train_loss = np.mean(losses)
+    logger.results['train_accuracies'].append(train_accuracy)
+    logger.results['train_losses'].append(train_loss)
+    verbose_print(verbose, 'Meta Epoch Train Accuracy: {}'.format(train_accuracy))
+    verbose_print(verbose, 'Meta Epoch Train Loss: {}'.format(train_loss))
+
+def meta_validation_epoch(logger, optimizer, tasks, config, meta_config, text_encoder, device, verbose):
+    verbose_print(verbose, 'Validation')
+    accuracies = []
+    losses = []
+    for path in tasks:
+        verbose_print(verbose, 'Task {}'.format(path))
+        task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
+        loss, accuracy = meta_test_instance(optimizer, task, config, meta_config, text_encoder, device, verbose)
+        accuracies.append(accuracy)
+        losses.append(loss)
+        verbose_print(verbose, 'Base Epoch Test Accuracy: {}'.format(accuracy))
+        verbose_print(verbose, 'Base Epoch Test Loss: {}'.format(loss))
+    validation_accuracy = np.mean(accuracies)
+    validation_loss = np.mean(losses)
+    logger.results['validation_accuracies'].append(validation_accuracy)
+    logger.results['validation_losses'].append(validation_loss)
+    verbose_print(verbose, 'Meta Epoch Validation Accuracy: {}'.format(validation_accuracy))
+    verbose_print(verbose, 'Meta Epoch Validation Loss: {}'.format(validation_loss))
+
+def meta_test_epoch(logger, optimizer, tasks, config, meta_config, text_encoder, device, verbose):
+    verbose_print(verbose, 'Testing')
+    baseline_accuracies = []
+    sgd_accuracies = []
+    adam_accuracies = []
+    stacked_optimizer_accuracies = []
+    baseline_losses = []
+    sgd_losses = []
+    adam_losses = []
+    stacked_optimizer_losses = []
+    for path in tasks:
+        verbose_print(verbose, 'Task {}'.format(path))
+        task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
+        baseline_loss, baseline_accuracy = meta_test_instance_baseline(task, config, text_encoder, device, verbose)
+        sgd_loss, sgd_accuracy = meta_test_instance_alternative_optimizer(SGD, {'lr':config['lr']}, task, config, meta_config, text_encoder, device, verbose)
+        adam_loss, adam_accuracy = meta_test_instance_alternative_optimizer(Adam, {'lr':config['lr'], 'betas':(config['b1'], config['b2']), 'eps':config['eps']}, task, config, meta_config, text_encoder, device, verbose)
+        stacked_optimizer_loss, stacked_optimizer_accuracy = meta_test_instance(optimizer, task, config, meta_config, text_encoder, device, verbose)
+        baseline_accuracies.append(baseline_accuracy)
+        sgd_accuracies.append(sgd_accuracy)
+        adam_accuracies.append(adam_accuracy)
+        stacked_optimizer_accuracies.append(stacked_optimizer_accuracy)
+        baseline_losses.append(baseline_loss)
+        sgd_losses.append(sgd_loss)
+        adam_losses.append(adam_loss)
+        stacked_optimizer_losses.append(stacked_optimizer_loss)
+        verbose_print(verbose, 'Base Epoch Test Accuracies: {} (Baseline), {} (SGD), {} (Adam), {} (StackedOptimizer)'.format(baseline_accuracy, sgd_accuracy, adam_accuracy, stacked_optimizer_accuracy))
+        verbose_print(verbose, 'Base Epoch Test Loss: {} (Baseline), {} (SGD), {} (Adam), {} (StackedOptimizer)'.format(baseline_loss, sgd_loss, adam_loss, stacked_optimizer_loss))
+    logger.results['baseline_test_loss'] = np.mean(baseline_losses)
+    logger.results['baseline_test_accuracy'] = np.mean(baseline_accuracies)
+    logger.results['sgd_test_loss'] = np.mean(sgd_losses)
+    logger.results['sgd_test_accuracy'] = np.mean(sgd_accuracies)
+    logger.results['adam_test_loss'] = np.mean(adam_losses)
+    logger.results['adam_test_accuracy'] = np.mean(adam_accuracies)
+    logger.results['stacked_optimizer_test_loss'] = np.mean(stacked_optimizer_losses)
+    logger.results['stacked_optimizer_test_accuracy'] = np.mean(stacked_optimizer_accuracies)
+    verbose_print(verbose, 'Meta Test Accuracies: {} (Baseline), {} (SGD), {} (Adam), {} (StackedOptimizer)'.format(np.mean(baseline_accuracies), np.mean(sgd_accuracies), np.mean(adam_accuracies), np.mean(stacked_optimizer_accuracies)))
+    verbose_print(verbose, 'Meta Test Loss: {} (Baseline), {} (SGD), {} (Adam), {} (StackedOptimizer)'.format(np.mean(baseline_losses), np.mean(sgd_losses), np.mean(adam_losses), np.mean(stacked_optimizer_losses)))
+
 
 if __name__ == '__main__':
 
@@ -175,68 +254,14 @@ if __name__ == '__main__':
     optimizer.to(device)
     meta_optimizer = Adam(optimizer.parameters(), lr=meta_config['meta_lr'])
 
-    test_losses = []
+    logger = MetaLogger(meta_config)
+
     for meta_epoch in range(meta_config['meta_epochs']):
         verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))
-        verbose_print(verbose, 'Training')
-        for path in train_tasks:
-            verbose_print(verbose, 'Task {}'.format(path))
-            for module_index in range(len(optimizer.optimizers)):
-                verbose_print(verbose, 'Module index {}'.format(module_index))
-                task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
-                loss, accuracy = meta_train_instance(optimizer, task, module_index, config, meta_config, text_encoder, device, verbose)
-                verbose_print(verbose, 'Base Epoch Test Accuracy: {}'.format(accuracy))
-                verbose_print(verbose, 'Base Epoch Test Loss: {}'.format(loss))
-        verbose_print(verbose, 'Validation')
-        for path in validation_tasks:
-            verbose_print(verbose, 'Task {}'.format(path))
-            task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
-            loss, accuracy = meta_test_instance(optimizer, task, config, meta_config, text_encoder, device, verbose)
-            verbose_print(verbose, 'Base Epoch Test Accuracy: {}'.format(accuracy))
-            verbose_print(verbose, 'Base Epoch Test Loss: {}'.format(loss))
-    verbose_print(verbose, 'Testing')
-    for path in test_tasks:
-        verbose_print(verbose, 'Task {}'.format(path))
-        task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
-        baseline_loss, baseline_accuracy = meta_test_instance_baseline(task, config, text_encoder, device, verbose)
-        sgd_loss, sgd_accuracy = meta_test_instance_alternative_optimizer(SGD, {'lr':config['lr']}, task, config, meta_config, text_encoder, device, verbose)
-        adam_loss, adam_accuracy = meta_test_instance_alternative_optimizer(Adam, {'lr':config['lr'], 'betas':(config['b1'], config['b2']), 'eps':config['eps']}, task, config, meta_config, text_encoder, device, verbose)
-        stacked_optimizer_loss, stacked_optimizer_accuracy = meta_test_instance(optimizer, task, config, meta_config, text_encoder, device, verbose)
-        verbose_print(verbose, 'Base Epoch Test Accuracies: {} (Baseline), {} (SGD), {} (Adam), {} (StackedOptimizer)'.format(baseline_accuracy, sgd_accuracy, adam_accuracy, stacked_optimizer_accuracy))
-        verbose_print(verbose, 'Base Epoch Test Loss: {} (Baseline), {} (SGD), {} (Adam), {} (StackedOptimizer)'.format(baseline_loss, sgd_loss, adam_loss, stacked_optimizer_loss))
-
-                ###
-
-                # dh_model, dataloaders, evaluators = prepare_experiment(config, task, text_encoder, device, verbose)
-                # train_dataloader, test_dataloader = dataloaders
-                # train_evaluator, test_evaluator = evaluators
-                # freeze_weights(dh_model, num_layers=meta_config['num_frozen_layers'])
-
-                # optimizer.initialize_params(dh_model, learn_initialization_indices)
-                # optimizer.reset_state()
-
-                # for x, m, y in get_iterator(train_dataloader, verbose):
-                #     lm_logits, task_logits = dh_model(x)
-                #     double_head_loss, task_loss, lm_loss = train_evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
-                #     dh_model.zero_grad()
-                #     double_head_loss.backward()
-                #     tuned_dh_model = optimizer(dh_model, double_head_loss, module_index)
-                # losses = []
-                # accuracies = []
-                # for x, m, y in get_iterator(test_dataloader, verbose):
-                #     lm_logits, task_logits = tuned_dh_model(x)
-                #     double_head_loss, task_loss, lm_loss = test_evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
-                #     accuracy = test_evaluator.compute_score(y, task_logits)
-                #     losses.append(double_head_loss)
-                #     accuracies.append(accuracy.cpu().item())
-                # losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
-                # loss = losses.mean(-1)
-                # meta_optimizer.zero_grad()
-                # loss.backward()
-                # meta_optimizer.step()
-                # test_loss = loss.cpu().item()
-                # test_losses.append(test_loss)
-                # test_accuracy = np.mean(accuracies)
-                # print('Epoch Test Accuracy: {}'.format(test_accuracy))
-                # print('Epoch Test Loss: {}'.format(test_loss))
-                # print('Mean Test Loss (last 20): {}'.format(np.mean(test_losses[-20:])))
+        meta_train_epoch(logger, optimizer, train_tasks, config, meta_config, text_encoder, device, verbose)
+        meta_validation_epoch(logger, optimizer, validation_tasks, config, meta_config, text_encoder, device, verbose)
+        logger.log()
+        logger.plot()
+    meta_test_epoch(logger, optimizer, test_tasks, config, meta_config, text_encoder, device, verbose)
+    logger.log()
+    logger.plot()
