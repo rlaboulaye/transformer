@@ -4,6 +4,7 @@
     "meta_lr": 0.001,
     "meta_test_split": 0.2,
     "meta_validation_split": 0.2,
-    "meta_epochs": 100,
+    "meta_epochs": 20,
+    "num_frozen_layers": 11,
     "seed": 42
 }

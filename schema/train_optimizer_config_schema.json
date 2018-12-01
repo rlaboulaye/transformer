@@ -5,14 +5,6 @@
             "type": "string",
             "description": "The path to the config file for training the base model"
         },
-        "keep_coef_init": {
-            "type": "number",
-            "description": "The initialization of the parameter-preserving coefficient"
-        },
-        "lr_init": {
-            "type": "number",
-            "description": "The initialization of the learning rate"
-        },
         "meta_lr": {
             "type": "number",
             "description": "The learning rate for the meta optimizer"
@@ -29,9 +21,9 @@
             "type": "integer",
             "description": "The number of training epochs for the optimizer"
         },
-        "base_epochs": {
+        "num_frozen_layers": {
             "type": "integer",
-            "description": "The number of training epochs for the base model"
+            "description": "The number of layers that will have frozen weights"
         },
         "seed": {
             "type": "integer",
@@ -41,12 +33,6 @@
     "properties": {
         "train_config_path": {
             "$ref": "#/definitions/train_config_path"
-        },
-        "keep_coef_init": {
-            "$ref": "#/definitions/keep_coef_init"
-        },
-        "lr_init": {
-            "$ref": "#/definitions/lr_init"
         },
         "meta_lr": {
             "$ref": "#/definitions/meta_lr"
@@ -60,8 +46,8 @@
         "meta_epochs": {
             "$ref": "#/definitions/meta_epochs"
         },
-        "base_epochs": {
-            "$ref": "#/definitions/base_epochs"
+        "num_frozen_layers": {
+            "$ref": "#/definitions/num_frozen_layers"
         },
         "seed": {
             "$ref": "#/definitions/seed"
@@ -73,6 +59,7 @@
         "meta_test_split",
         "meta_validation_split",
         "meta_epochs",
+        "num_frozen_layers",
         "seed"
     ]
 }

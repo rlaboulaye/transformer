@@ -16,12 +16,14 @@ from evaluate import Evaluator
 from train import load_openai_pretrained_model
 
 
-def freeze_weights(model, num_layers):
-    for parameter in model.transformer.embed.parameters():
+def no_grad(module):
+    for parameter in module.parameters():
         parameter.requires_grad = False
+
+def freeze_weights(model, num_layers):
+    no_grad(model.transformer.embed)
     for layer in model.transformer.h[:num_layers]:
-        for parameter in layer.parameters():
-            parameter.requires_grad = False
+        no_grad(layer)
 
 def get_document(config_path, schema_path):
     with open(config_path, 'r') as config_file:
@@ -42,13 +44,97 @@ def prepare_experiment(config, task, text_encoder, device, verbose):
     elif target_type == 'regression':
         task_criterion = nn.MSELoss(reduction='none')
     lm_criterion = nn.CrossEntropyLoss(reduction='none')
-    evaluator = Evaluator(lm_criterion, task_criterion, config['lm_coef'], 1., target_type)
+    train_evaluator = Evaluator(lm_criterion, task_criterion, config['lm_coef'], 1., target_type)
+    test_evaluator = Evaluator(lm_criterion, task_criterion, 0., 1., target_type)
 
     dh_model = DoubleHeadModel(config, text_encoder.classify_token, num_output, vocab_size, sequence_dim)
     load_openai_pretrained_model(dh_model.transformer, n_ctx=sequence_dim, n_special=3, verbose=verbose)
     dh_model.to(device)
 
-    return dh_model, (train_dataloader, validation_dataloader, test_dataloader), evaluator
+    return dh_model, (train_dataloader, test_dataloader), (train_evaluator, test_evaluator)
+
+def meta_train_instance(optimizer, task, module_index, config, meta_config, text_encoder, device, verbose):
+    dh_model, dataloaders, evaluators = prepare_experiment(config, task, text_encoder, device, verbose)
+    train_dataloader, test_dataloader = dataloaders
+    train_evaluator, test_evaluator = evaluators
+    freeze_weights(dh_model, num_layers=meta_config['num_frozen_layers'])
+
+    optimizer.initialize_params(dh_model, learn_initialization_indices)
+    optimizer.reset_state()
+
+    dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, module_index, verbose)
+    loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
+
+    meta_optimizer.zero_grad()
+    loss.backward()
+    meta_optimizer.step()
+
+    return loss.cpu().item(), accuracy
+
+def meta_test_instance(optimizer, task, config, meta_config, text_encoder, device, verbose):
+    set_seed(config['seed'])
+    dh_model, dataloaders, evaluators = prepare_experiment(config, task, text_encoder, device, verbose)
+    train_dataloader, test_dataloader = dataloaders
+    train_evaluator, test_evaluator = evaluators
+    freeze_weights(dh_model, num_layers=meta_config['num_frozen_layers'])
+
+    optimizer.initialize_params(dh_model, learn_initialization_indices)
+    optimizer.reset_state()
+
+    dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+    loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
+
+    return loss.cpu().item(), accuracy
+
+def meta_test_instance_alternative_optimizer(optimizer_class, optimizer_arguments, task, config, meta_config, text_encoder, device, verbose):
+    set_seed(config['seed'])
+    dh_model, dataloaders, evaluators = prepare_experiment(config, task, text_encoder, device, verbose)
+    train_dataloader, test_dataloader = dataloaders
+    train_evaluator, test_evaluator = evaluators
+    freeze_weights(dh_model, num_layers=meta_config['num_frozen_layers'])
+
+    optimizer = optimizer_class(dh_model.parameters(), **optimizer_arguments)
+
+    dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+    loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
+
+    return loss.cpu().item(), accuracy
+
+def meta_test_instance_baseline(task, config, text_encoder, device, verbose):
+    set_seed(config['seed'])
+    dh_model, dataloaders, evaluators = prepare_experiment(config, task, text_encoder, device, verbose)
+    train_dataloader, test_dataloader = dataloaders
+    train_evaluator, test_evaluator = evaluators
+    no_grad(dh_model)
+    loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
+    return loss.cpu().item(), accuracy
+
+def train_epoch(dh_model, optimizer, dataloader, evaluator, module_index, verbose):
+    for x, m, y in get_iterator(dataloader, verbose):
+        lm_logits, task_logits = dh_model(x)
+        double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
+        dh_model.zero_grad()
+        double_head_loss.backward()
+        if isinstance(optimizer, StackedOptimizer):
+            tuned_dh_model = optimizer(dh_model, double_head_loss, module_index)
+        else:
+            optimizer.step()
+            tuned_dh_model = dh_model
+    return tuned_dh_model
+
+def test_epoch(dh_model, dataloader, evaluator, verbose):
+    losses = []
+    accuracies = []
+    for x, m, y in get_iterator(dataloader, verbose):
+        lm_logits, task_logits = dh_model(x)
+        double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
+        accuracy = test_evaluator.compute_score(y, task_logits)
+        losses.append(double_head_loss)
+        accuracies.append(accuracy.cpu().item())
+    losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
+    loss = losses.mean(-1)
+    accuracy = np.mean(accuracies)
+    return loss, accuracy
 
 
 if __name__ == '__main__':
@@ -79,9 +165,10 @@ if __name__ == '__main__':
 
     task_path = args.task_directory_path + np.random.choice(train_tasks)
     task = get_document(task_path, 'schema/task_schema.json')
-    dh_model, dataloaders, evaluator = prepare_experiment(config, task, text_encoder, device, verbose)
-    train_dataloader, validation_dataloader, test_dataloader = dataloaders
-    freeze_weights(dh_model, num_layers=11)
+    dh_model, dataloaders, evaluators = prepare_experiment(config, task, text_encoder, device, verbose)
+    train_dataloader, test_dataloader = dataloaders
+    train_evaluator, test_evaluator = evaluators
+    freeze_weights(dh_model, num_layers=meta_config['num_frozen_layers'])
 
     learn_initialization_indices = []
     optimizer = StackedOptimizer(dh_model, learn_initialization_indices=learn_initialization_indices)
@@ -90,44 +177,66 @@ if __name__ == '__main__':
 
     test_losses = []
     for meta_epoch in range(meta_config['meta_epochs']):
-        # verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))
-        print('Running meta-epoch {}'.format(meta_epoch))
-        for module_index in range(len(optimizer.optimizers)):
-            # verbose_print(verbose, 'Module index {}'.format(module_index))
-            print('Module index {}'.format(module_index))
+        verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))
+        verbose_print(verbose, 'Training')
+        for path in train_tasks:
+            verbose_print(verbose, 'Task {}'.format(path))
+            for module_index in range(len(optimizer.optimizers)):
+                verbose_print(verbose, 'Module index {}'.format(module_index))
+                task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
+                loss, accuracy = meta_train_instance(optimizer, task, module_index, config, meta_config, text_encoder, device, verbose)
+                verbose_print(verbose, 'Base Epoch Test Accuracy: {}'.format(accuracy))
+                verbose_print(verbose, 'Base Epoch Test Loss: {}'.format(loss))
+        verbose_print(verbose, 'Validation')
+        for path in validation_tasks:
+            verbose_print(verbose, 'Task {}'.format(path))
+            task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
+            loss, accuracy = meta_test_instance(optimizer, task, config, meta_config, text_encoder, device, verbose)
+            verbose_print(verbose, 'Base Epoch Test Accuracy: {}'.format(accuracy))
+            verbose_print(verbose, 'Base Epoch Test Loss: {}'.format(loss))
+    verbose_print(verbose, 'Testing')
+    for path in test_tasks:
+        verbose_print(verbose, 'Task {}'.format(path))
+        task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
+        baseline_loss, baseline_accuracy = meta_test_instance_baseline(task, config, text_encoder, device, verbose)
+        sgd_loss, sgd_accuracy = meta_test_instance_alternative_optimizer(SGD, {'lr':config['lr']}, task, config, meta_config, text_encoder, device, verbose)
+        adam_loss, adam_accuracy = meta_test_instance_alternative_optimizer(Adam, {'lr':config['lr'], 'betas':(config['b1'], config['b2']), 'eps':config['eps']}, task, config, meta_config, text_encoder, device, verbose)
+        stacked_optimizer_loss, stacked_optimizer_accuracy = meta_test_instance(optimizer, task, config, meta_config, text_encoder, device, verbose)
+        verbose_print(verbose, 'Base Epoch Test Accuracies: {} (Baseline), {} (SGD), {} (Adam), {} (StackedOptimizer)'.format(baseline_accuracy, sgd_accuracy, adam_accuracy, stacked_optimizer_accuracy))
+        verbose_print(verbose, 'Base Epoch Test Loss: {} (Baseline), {} (SGD), {} (Adam), {} (StackedOptimizer)'.format(baseline_loss, sgd_loss, adam_loss, stacked_optimizer_loss))
 
-            task_path = args.task_directory_path + np.random.choice(train_tasks)
-            print(os.path.basename(task_path))
-            task = get_document(task_path, 'schema/task_schema.json')
-            dh_model, dataloaders, evaluator = prepare_experiment(config, task, text_encoder, device, verbose)
-            train_dataloader, validation_dataloader, test_dataloader = dataloaders
-            freeze_weights(dh_model, num_layers=11)
+                ###
 
-            optimizer.initialize_params(dh_model, learn_initialization_indices)
-            optimizer.reset_state()
+                # dh_model, dataloaders, evaluators = prepare_experiment(config, task, text_encoder, device, verbose)
+                # train_dataloader, test_dataloader = dataloaders
+                # train_evaluator, test_evaluator = evaluators
+                # freeze_weights(dh_model, num_layers=meta_config['num_frozen_layers'])
 
-            for x, m, y in get_iterator(train_dataloader, verbose):
-                lm_logits, task_logits = dh_model(x)
-                double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
-                dh_model.zero_grad()
-                double_head_loss.backward()
-                tuned_dh_model = optimizer(dh_model, double_head_loss, module_index)
-            losses = []
-            accuracies = []
-            for x, m, y in get_iterator(validation_dataloader, verbose):
-                lm_logits, task_logits = tuned_dh_model(x)
-                double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
-                accuracy = evaluator.compute_score(y, task_logits)
-                losses.append(double_head_loss)
-                accuracies.append(accuracy.cpu().item())
-            losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
-            loss = losses.mean(-1)
-            meta_optimizer.zero_grad()
-            loss.backward()
-            meta_optimizer.step()
-            test_loss = loss.cpu().item()
-            test_losses.append(test_loss)
-            test_accuracy = np.mean(accuracies)
-            print('Epoch Test Accuracy: {}'.format(test_accuracy))
-            print('Epoch Test Loss: {}'.format(test_loss))
-            print('Mean Test Loss (last 20): {}'.format(np.mean(test_losses[-20:])))
+                # optimizer.initialize_params(dh_model, learn_initialization_indices)
+                # optimizer.reset_state()
+
+                # for x, m, y in get_iterator(train_dataloader, verbose):
+                #     lm_logits, task_logits = dh_model(x)
+                #     double_head_loss, task_loss, lm_loss = train_evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
+                #     dh_model.zero_grad()
+                #     double_head_loss.backward()
+                #     tuned_dh_model = optimizer(dh_model, double_head_loss, module_index)
+                # losses = []
+                # accuracies = []
+                # for x, m, y in get_iterator(test_dataloader, verbose):
+                #     lm_logits, task_logits = tuned_dh_model(x)
+                #     double_head_loss, task_loss, lm_loss = test_evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
+                #     accuracy = test_evaluator.compute_score(y, task_logits)
+                #     losses.append(double_head_loss)
+                #     accuracies.append(accuracy.cpu().item())
+                # losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
+                # loss = losses.mean(-1)
+                # meta_optimizer.zero_grad()
+                # loss.backward()
+                # meta_optimizer.step()
+                # test_loss = loss.cpu().item()
+                # test_losses.append(test_loss)
+                # test_accuracy = np.mean(accuracies)
+                # print('Epoch Test Accuracy: {}'.format(test_accuracy))
+                # print('Epoch Test Loss: {}'.format(test_loss))
+                # print('Mean Test Loss (last 20): {}'.format(np.mean(test_losses[-20:])))
