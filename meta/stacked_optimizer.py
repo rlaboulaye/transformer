@@ -29,7 +29,7 @@ class StackedOptimizer(nn.Module):
 		modules = [module for module in self.local_model.model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
 		for module_index, module in enumerate(modules):
 			learn_initialization = module_index in learn_initialization_indices
-			self.optimizers.append(LSTMOptimizer(module, hidden_size, num_layers, momentum, learn_initialization=learn_initialization))
+			self.optimizers.append(LSTMOptimizer(module, hidden_size, num_layers, momentum, learn_initialization=learn_initialization, dist_from_output=len(optimizers) - module_index - 1))
 
 	def reset_state(self):
 		for optimizer in self.optimizers:
