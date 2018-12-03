@@ -64,8 +64,8 @@ def meta_train_instance(optimizer, task, module_index, config, meta_config, text
     optimizer.reset_state()
 
     for epoch in range(config['n_iter']):
-        dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, module_index, verbose)
-    loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, module_index, verbose)
+    loss, accuracy = test_epoch(tuned_dh_model, test_dataloader, test_evaluator, verbose)
 
     meta_optimizer.zero_grad()
     loss.backward()
@@ -84,8 +84,8 @@ def meta_test_instance(optimizer, task, config, meta_config, text_encoder, devic
     optimizer.reset_state()
 
     for epoch in range(config['n_iter']):
-        dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
-    loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+    loss, accuracy = test_epoch(tuned_dh_model, test_dataloader, test_evaluator, verbose)
 
     return loss.cpu().item(), accuracy
 
@@ -99,8 +99,8 @@ def meta_test_instance_alternative_optimizer(optimizer_class, optimizer_argument
     optimizer = optimizer_class(dh_model.parameters(), **optimizer_arguments)
 
     for epoch in range(config['n_iter']):
-        dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
-    loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+    loss, accuracy = test_epoch(tuned_dh_model, test_dataloader, test_evaluator, verbose)
 
     return loss.cpu().item(), accuracy
 
@@ -114,8 +114,8 @@ def meta_test_instance_baseline(task, config, text_encoder, device, verbose):
     optimizer = Adam(dh_model.parameters(), lr=config['lr'], betas=(config['b1'], config['b2']), eps=config['eps'])
 
     for epoch in range(config['n_iter']):
-        dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
-    loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+    loss, accuracy = test_epoch(tuned_dh_model, test_dataloader, test_evaluator, verbose)
 
     return loss.cpu().item(), accuracy
 
