@@ -63,7 +63,8 @@ def meta_train_instance(optimizer, task, module_index, config, meta_config, text
     optimizer.initialize_params(dh_model, learn_initialization_indices)
     optimizer.reset_state()
 
-    dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, module_index, verbose)
+    for epoch in range(config['n_iter']):
+        dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, module_index, verbose)
     loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
 
     meta_optimizer.zero_grad()
@@ -82,7 +83,8 @@ def meta_test_instance(optimizer, task, config, meta_config, text_encoder, devic
     optimizer.initialize_params(dh_model, learn_initialization_indices)
     optimizer.reset_state()
 
-    dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+    for epoch in range(config['n_iter']):
+        dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
     loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
 
     return loss.cpu().item(), accuracy
@@ -96,7 +98,8 @@ def meta_test_instance_alternative_optimizer(optimizer_class, optimizer_argument
 
     optimizer = optimizer_class(dh_model.parameters(), **optimizer_arguments)
 
-    dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+    for epoch in range(config['n_iter']):
+        dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
     loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
 
     return loss.cpu().item(), accuracy
@@ -106,8 +109,14 @@ def meta_test_instance_baseline(task, config, text_encoder, device, verbose):
     dh_model, dataloaders, evaluators = prepare_experiment(config, task, text_encoder, device, verbose)
     train_dataloader, test_dataloader = dataloaders
     train_evaluator, test_evaluator = evaluators
-    no_grad(dh_model)
+    freeze_weights(dh_model, num_layers=12)
+
+    optimizer = Adam(dh_model.parameters(), lr=config['lr'], betas=(config['b1'], config['b2']), eps=config['eps'])
+
+    for epoch in range(config['n_iter']):
+        dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
     loss, accuracy = test_epoch(dh_model, test_dataloader, test_evaluator, verbose)
+
     return loss.cpu().item(), accuracy
 
 def train_epoch(dh_model, optimizer, dataloader, evaluator, module_index, verbose):

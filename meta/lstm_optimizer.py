@@ -58,10 +58,8 @@ class LSTMOptimizer(nn.Module):
 		self.W_theta.weight.data.uniform_(-window, window)
 		self.W_theta.bias.data.uniform_(11., 12.)
 		self.W_grad.weight.data.uniform_(-window, window)
-		bias_init = -7.5 - .1 * dist_from_output ** 1.2
+		bias_init = -7.5 - .1 * dist_from_output ** 1.5
 		self.W_grad.bias.data.uniform_(bias_init, bias_init + .5)
-		import sys
-		sys.exit()
 
 	def to(self, device):
 		self.device = device
