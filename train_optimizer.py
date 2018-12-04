@@ -271,6 +271,7 @@ if __name__ == '__main__':
         meta_validation_epoch(logger, optimizer, validation_tasks, config, meta_config, text_encoder, device, verbose)
         logger.log()
         logger.plot()
+        torch.save(optimizer.state_dict(), os.path.join(logger.results_directory, 'weights_{}.pth'.format(meta_epoch)))
     meta_test_epoch(logger, optimizer, test_tasks, config, meta_config, text_encoder, device, verbose)
     logger.log()
     logger.plot()
