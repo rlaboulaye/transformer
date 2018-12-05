@@ -41,7 +41,12 @@ def get_dataloaders(task, text_encoder, test_split, validation_split, batch_size
 	target_type = task['target']['target_type']
 	target_index = task['target']['column_index']
 
-	train_target_matrix, target_encoders = get_target_matrix(train_dataframe, target_index, target_type)
+	encoder = LabelEncoder()
+	encoder.fit_transform(np.concatenate([train_dataframe[train_dataframe.columns[target_index]].unique(),
+		validation_dataframe[validation_dataframe.columns[target_index]].unique(),
+		test_dataframe[test_dataframe.columns[target_index]].unique()]))
+
+	train_target_matrix, target_encoders = get_target_matrix(train_dataframe, target_index, target_type, [encoder])
 	train_matrices += (train_target_matrix,)
 
 	validation_target_matrix, _ = get_target_matrix(validation_dataframe, target_index, target_type, target_encoders)
