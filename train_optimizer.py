@@ -152,9 +152,9 @@ def meta_train_epoch(logger, optimizer, tasks, config, meta_config, text_encoder
     losses = []
     for path in tasks:
         verbose_print(verbose, 'Task {}'.format(path))
+        task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
         for module_index in range(len(optimizer.optimizers)):
             verbose_print(verbose, 'Module index {}'.format(module_index))
-            task = get_document(os.path.join(args.task_directory_path, path), 'schema/task_schema.json')
             loss, accuracy = meta_train_instance(optimizer, task, module_index, config, meta_config, text_encoder, device, verbose)
             accuracies.append(accuracy)
             losses.append(loss)
@@ -229,10 +229,12 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('--log', action='store_true')
     parser.add_argument('--config_path', type=str, default='schema/train_optimizer_config.json')
     parser.add_argument('--task_directory_path', type=str)
     args = parser.parse_args()
 
+    log = args.log
     verbose = args.verbose
     if verbose:
         verbose_print(verbose, vars(args))
@@ -269,9 +271,11 @@ if __name__ == '__main__':
         verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))
         meta_train_epoch(logger, optimizer, train_tasks, config, meta_config, text_encoder, device, verbose)
         meta_validation_epoch(logger, optimizer, validation_tasks, config, meta_config, text_encoder, device, verbose)
+        if log:
+            logger.log()
+            logger.plot()
+            torch.save(optimizer.state_dict(), os.path.join(logger.results_directory, 'weights_{}.pth'.format(meta_epoch)))
+    meta_test_epoch(logger, optimizer, test_tasks, config, meta_config, text_encoder, device, verbose)
+    if log:
         logger.log()
         logger.plot()
-        torch.save(optimizer.state_dict(), os.path.join(logger.results_directory, 'weights_{}.pth'.format(meta_epoch)))
-    meta_test_epoch(logger, optimizer, test_tasks, config, meta_config, text_encoder, device, verbose)
-    logger.log()
-    logger.plot()
