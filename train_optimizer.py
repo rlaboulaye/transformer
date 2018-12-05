@@ -265,7 +265,7 @@ if __name__ == '__main__':
     optimizer.to(device)
     meta_optimizer = Adam(optimizer.parameters(), lr=meta_config['meta_lr'])
 
-    logger = MetaLogger(meta_config)
+    logger = MetaLogger(meta_config, args.task_directory_path)
 
     for meta_epoch in range(meta_config['meta_epochs']):
         verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))

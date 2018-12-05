@@ -8,9 +8,10 @@ from matplotlib import pyplot as plt
 
 class MetaLogger(object):
 
-    def __init__(self, meta_config):
+    def __init__(self, meta_config, task_directory):
         self.results_directory = os.path.join('meta_results', str(datetime.datetime.now()))
         self.results = {
+            'task_directory': task_directory,
             'train_losses': [],
             'train_accuracies': [],
             'validation_losses': [],
