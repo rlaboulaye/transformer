@@ -120,7 +120,7 @@ def meta_test_instance_baseline(task, config, text_encoder, device, verbose):
     return loss.cpu().item(), accuracy
 
 def train_epoch(dh_model, optimizer, dataloader, evaluator, module_index, verbose):
-    for x, m, y in get_iterator(dataloader, verbose):
+    for x, m, y in get_iterator(dataloader, False):
         lm_logits, task_logits = dh_model(x)
         double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
         dh_model.zero_grad()
@@ -135,7 +135,7 @@ def train_epoch(dh_model, optimizer, dataloader, evaluator, module_index, verbos
 def test_epoch(dh_model, dataloader, evaluator, verbose):
     losses = []
     accuracies = []
-    for x, m, y in get_iterator(dataloader, verbose):
+    for x, m, y in get_iterator(dataloader, False):
         lm_logits, task_logits = dh_model(x)
         double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
         accuracy = test_evaluator.compute_score(y, task_logits)
