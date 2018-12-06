@@ -26,8 +26,6 @@ class MetaLogger(object):
             'stacked_optimizer_test_accuracy': 0,
             'config': meta_config
         }
-        if not os.path.exists(self.results_directory):
-            os.makedirs(self.results_directory)
 
     def load(self, file_path):
         self.results_directory, _ = os.path.split(file_path)
@@ -35,6 +33,8 @@ class MetaLogger(object):
             self.results = json.load(file_obj)
 
     def log(self):
+        if not os.path.exists(self.results_directory):
+            os.makedirs(self.results_directory)
         with open('{}/results.json'.format(self.results_directory), 'w') as file_obj:
             json.dump(self.results, file_obj, indent=4)
 
