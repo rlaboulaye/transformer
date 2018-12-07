@@ -8,10 +8,12 @@ from matplotlib import pyplot as plt
 
 class MetaLogger(object):
 
-    def __init__(self, meta_config, task_directory):
+    def __init__(self, meta_config, config, task_directory, load_directory=None, load_epoch=None):
         self.results_directory = os.path.join('meta_results', str(datetime.datetime.now()))
         self.results = {
             'task_directory': task_directory,
+            'load_directory': load_directory,
+            'load_epoch': load_epoch,
             'train_losses': [],
             'train_accuracies': [],
             'validation_losses': [],
@@ -24,7 +26,8 @@ class MetaLogger(object):
             'adam_test_accuracy': 0,
             'stacked_optimizer_test_loss': 0,
             'stacked_optimizer_test_accuracy': 0,
-            'config': meta_config
+            'config': config,
+            'meta_config': meta_config
         }
 
     def load(self, file_path):

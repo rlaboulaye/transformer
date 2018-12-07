@@ -232,6 +232,9 @@ if __name__ == '__main__':
     parser.add_argument('--log', action='store_true')
     parser.add_argument('--config_path', type=str, default='schema/train_optimizer_config.json')
     parser.add_argument('--task_directory_path', type=str)
+    parser.add_argument('--load_directory_path', type=str)
+    parser.add_argument('--load_epoch', type=int)
+
     args = parser.parse_args()
 
     log = args.log
@@ -262,20 +265,31 @@ if __name__ == '__main__':
 
     learn_initialization_indices = []
     optimizer = StackedOptimizer(dh_model, learn_initialization_indices=learn_initialization_indices)
+    if args.load_directory_path is not None and args.load_epoch is not None:
+        state_dict = torch.load(os.path.join(args.load_directory_path, 'weights_{}.pth'.format(args.load_epoch)))
+        optimizer.load_state_dict(state_dict)
     optimizer.to(device)
     meta_optimizer = Adam(optimizer.parameters(), lr=meta_config['meta_lr'])
 
-    logger = MetaLogger(meta_config, args.task_directory_path)
+    logger = MetaLogger(meta_config, config, args.task_directory_path, args.load_directory_path, args.load_epoch)
 
     for meta_epoch in range(meta_config['meta_epochs']):
         verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))
         meta_train_epoch(logger, optimizer, train_tasks, config, meta_config, text_encoder, device, verbose)
         meta_validation_epoch(logger, optimizer, validation_tasks, config, meta_config, text_encoder, device, verbose)
-        if log:
+        if log and meta_epoch < meta_config['meta_epochs'] - 1:
             logger.log()
             logger.plot()
+            optimizer.local_model = None
+            for sub_optimizer in optimizer.optimizers:
+                for param in sub_optimizer.local_module.parameters():
+                    param = None
             torch.save(optimizer.state_dict(), os.path.join(logger.results_directory, 'weights_{}.pth'.format(meta_epoch)))
     meta_test_epoch(logger, optimizer, test_tasks, config, meta_config, text_encoder, device, verbose)
     if log:
         logger.log()
         logger.plot()
+        for sub_optimizer in optimizer.optimizers:
+            for param in sub_optimizer.local_module.parameters():
+                param = None
+        torch.save(optimizer.state_dict(), os.path.join(logger.results_directory, 'weights_{}.pth'.format(meta_epoch)))
