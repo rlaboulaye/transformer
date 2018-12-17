@@ -15,5 +15,5 @@ The repo is also dependent on a pretrained spacy model that can be installed as 
 To train a base model run:\
 `python train.py --task_path {path to json task file} [--config_path {path to json config file}] [--verbose]`
 
-to train a meta model run:\
+To train a meta model run:\
 `python train_optimizer.py --task_directory_path {path to directory of json task files} [--verbose] [--log] [config_path {path to meta-config json file}]` 
