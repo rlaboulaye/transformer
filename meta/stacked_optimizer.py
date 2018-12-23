@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 from .local_model import LocalModel
@@ -28,7 +29,7 @@ class StackedOptimizer(nn.Module):
 		modules = [module for module in self.local_model.model.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
 		for module_index, module in enumerate(modules):
 			learn_initialization = module_index in learn_initialization_indices
-			self.optimizers.append(LSTMOptimizer(module, hidden_size, num_layers, momentum, learn_initialization=learn_initialization))
+			self.optimizers.append(LSTMOptimizer(module, hidden_size, num_layers, momentum, learn_initialization=learn_initialization, dist_from_output=len(modules) - module_index - 1))
 
 	def reset_state(self):
 		for optimizer in self.optimizers:
@@ -41,11 +42,17 @@ class StackedOptimizer(nn.Module):
 			optimizer.initialize_params()
 		self.local_model.copy_params_to(model)
 
-	def forward(self, model_with_grads, loss):
+	def forward(self, model_with_grads, loss, learning_module_indices, update_indices=None):
 		loss_t = loss.clone().detach().view(-1, 1)
 		modules = [module for module in model_with_grads.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
 		for module_index, module in enumerate(modules):
+			if update_indices is not None and module_index not in update_indices:
+				continue
 			optimizer = self.optimizers[module_index]
-			optimizer(module, loss_t)
+			if learning_module_indices is not None and module_index in learning_module_indices:
+				optimizer(module, loss_t)
+			else:
+				with torch.no_grad():
+					optimizer(module, loss_t)
 		self.local_model.copy_params_to(model_with_grads)
 		return self.local_model.model

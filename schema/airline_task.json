@@ -15,7 +15,7 @@
 	},
 	"target": {
 		"column_index": 2,
-		"target_type": "regression",
-		"num_classes": 1
+		"target_type": "classification",
+		"num_classes": 3
 	}
 }

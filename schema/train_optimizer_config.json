@@ -1,10 +1,10 @@
 {
     "$schema": "schema/train_optimizer_config_schema.json",
     "train_config_path": "schema/train_config.json",
-    "keep_coef_init": 0.9999,
-    "lr_init": 0.0001,
     "meta_lr": 0.001,
-    "meta_epochs": 100,
-    "base_epochs": 10,
-    "seed": 42
+    "meta_test_split": 0.2,
+    "meta_validation_split": 0.2,
+    "meta_epochs": 2,
+    "num_frozen_layers": 10,
+    "seed": 999
 }

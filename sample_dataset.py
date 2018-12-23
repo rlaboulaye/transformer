@@ -1,5 +1,6 @@
 import json
 import os
+import argparse
 
 import pandas as pd
 import numpy as np
@@ -9,7 +10,7 @@ from data.data_utils import load_dataframe
 SCHEMA_DIR = "schema/"
 
 
-def sample_dataset(task_path, name=None, num_datasets=None, max_length=300):
+def sample_dataset(task_path, parent_directory, name=None, num_datasets=None, max_length=300):
 
     # Get task json object
     with open(task_path, "r") as f:
@@ -38,13 +39,13 @@ def sample_dataset(task_path, name=None, num_datasets=None, max_length=300):
 
 
     # Make a directory for the new task json files inside the current task directory
-    task_dir = os.path.join(task_head, name + "_tasks")
+    task_dir = os.path.join(parent_directory, name + "_tasks")
     if not os.path.exists(task_dir):
         os.mkdir(task_dir)
 
     # Make a directory for the new sampled datasets inside the current dataset directory
     data_head, data_tail = os.path.split(task["train_file"]["file_path"])
-    data_dir = os.path.join(data_head, name + "_datasets")
+    data_dir = os.path.join(parent_directory, name + "_datasets")
     if not os.path.exists(data_dir):
         os.mkdir(data_dir)
 
@@ -94,4 +95,13 @@ def split_dataset(dataframe, target_col, length=None, num_datasets=None):
     return subsets
 
 
-sample_dataset("/users/guest/m/masonfp/Desktop/transformer/schema/airline_task.json", "test")
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--task_path', type=str)
+    parser.add_argument('--parent_directory', type=str)
+    parser.add_argument('--size', type=int)
+
+    args = parser.parse_args()
+
+sample_dataset(args.task_path, args.parent_directory, max_length=args.size)

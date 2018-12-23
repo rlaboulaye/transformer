@@ -9,7 +9,7 @@ from meta.stacked_optimizer import StackedOptimizer
 from meta.mlp import MLP
 
 
-def train_network(train_set, test_set, num_classes, loss_function, optimizer, meta_optimizer, device, epochs):
+def train_network(train_set, test_set, num_classes, loss_function, optimizer, meta_optimizer, device, epochs, module_index):
 
     mlp = MLP(X_Y.shape[-1] - 1, num_classes, 3072)
     mlp.to(device)
@@ -32,7 +32,7 @@ def train_network(train_set, test_set, num_classes, loss_function, optimizer, me
             mlp.zero_grad()
             loss.backward()
             # optimizer.step()
-            tuned_mlp = optimizer(mlp, loss)
+            tuned_mlp = optimizer(mlp, loss, module_index)
             losses.append(loss)
         losses = torch.cat([loss.unsqueeze(-1) for loss in losses], dim=-1)
         loss = losses.mean(-1)
@@ -83,7 +83,9 @@ meta_optimizer = Adam(optimizer.parameters(), lr=.001)
 
 for meta_epoch in range(meta_epochs):
     print('Meta Epoch {}'.format(meta_epoch))
-    X_Y = np.random.permutation(X_Y)
-    train_set = X_Y[:10]
-    test_set = X_Y[10:]
-    train_network(train_set, test_set, num_classes, loss_function, optimizer, meta_optimizer, device, epochs)
+    for module_index in range(len(optimizer.optimizers)):
+        print('Module Index {}'.format(module_index))
+        X_Y = np.random.permutation(X_Y)
+        train_set = X_Y[:10]
+        test_set = X_Y[10:]
+        train_network(train_set, test_set, num_classes, loss_function, optimizer, meta_optimizer, device, epochs, module_index)

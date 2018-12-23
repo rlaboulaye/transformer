@@ -7,7 +7,7 @@ from .attention import Attention
 
 class LSTMOptimizer(nn.Module):
 
-	def __init__(self, module, hidden_size=20, num_layers=1, momentum=0, learn_initialization=True):
+	def __init__(self, module, hidden_size=20, num_layers=1, momentum=0, learn_initialization=True, dist_from_output=0):
 		super(LSTMOptimizer, self).__init__()
 
 		self.learn_initialization = learn_initialization
@@ -41,7 +41,7 @@ class LSTMOptimizer(nn.Module):
 		dims = [shape[1] if len(shape) == 2 else 1 for shape in shapes]
 		seq_dim = np.sum(dims)
 		self.attention = Attention(3, seq_dim, num_head, attn_pdrop, resid_pdrop, True)
-		self.initialize_optimizer_params()
+		self.initialize_optimizer_params(dist_from_output=dist_from_output)
 
 	def set_module(self, module):
 		self.local_module = module
@@ -52,13 +52,15 @@ class LSTMOptimizer(nn.Module):
 		shape = (np.sum([np.prod(shape) for shape in shapes]), 1)
 		self.theta_0 = nn.Parameter(torch.zeros(shape, device=self.device).normal_(0, np.sqrt(2. / input_and_output_size)))
 
-	def initialize_optimizer_params(self, window=.01):
+	def initialize_optimizer_params(self, window=.01, dist_from_output=0):
 		for param in self.lstm.parameters():
 			param.data.uniform_(-window, window)
 		self.W_theta.weight.data.uniform_(-window, window)
 		self.W_theta.bias.data.uniform_(11., 12.)
 		self.W_grad.weight.data.uniform_(-window, window)
-		self.W_grad.bias.data.uniform_(-3.5, -4.5)
+		bias_init = -9.5 - .15 * dist_from_output ** 1.6
+		bias_init = -9.5
+		self.W_grad.bias.data.uniform_(bias_init, bias_init - .5)
 
 	def to(self, device):
 		self.device = device
