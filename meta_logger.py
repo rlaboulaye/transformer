@@ -24,8 +24,8 @@ class MetaLogger(object):
             'sgd_test_accuracy': 0,
             'adam_test_loss': 0,
             'adam_test_accuracy': 0,
-            'stacked_optimizer_test_loss': 0,
-            'stacked_optimizer_test_accuracy': 0,
+            'meta_optimizer_test_loss': 0,
+            'meta_optimizer_test_accuracy': 0,
             'config': config,
             'meta_config': meta_config
         }
@@ -46,40 +46,42 @@ class MetaLogger(object):
         plt.title('Loss')
         plt.xlabel('Meta Epochs')
         plt.ylabel('Loss')
-        plt.plot(self.results['train_losses'], label='train')
-        plt.plot(self.results['validation_losses'], label='validate')
+        plt.xticks(np.arange(0, len(self.results['train_losses']) * .125, .25))
+        plt.plot(np.arange(.125, (len(self.results['train_losses']) + 1) * .125, .125), self.results['train_losses'], label='train')
+        plt.plot(np.arange(.125, (len(self.results['validation_losses']) + 1) * .125, .125), self.results['validation_losses'], label='validation')
         plt.legend()
-        plt.savefig('{}/loss.png'.format(self.results_directory))
+        plt.savefig('{}/loss.pdf'.format(self.results_directory))
         plt.close()
 
         plt.figure()
         plt.title('Accuracy')
         plt.xlabel('Meta Epochs')
         plt.ylabel('Accuracy')
-        plt.plot(self.results['train_accuracies'], label='train')
-        plt.plot(self.results['validation_accuracies'], label='validate')
+        plt.xticks(np.arange(0, len(self.results['train_accuracies']) * .125, .25))
+        plt.plot(np.arange(.125, (len(self.results['train_accuracies']) + 1) * .125, .125), self.results['train_accuracies'], label='train')
+        plt.plot(np.arange(.125, (len(self.results['validation_accuracies']) + 1) * .125, .125), self.results['validation_accuracies'], label='validation')
         plt.legend()
-        plt.savefig('{}/accuracy.png'.format(self.results_directory))
+        plt.savefig('{}/accuracy.pdf'.format(self.results_directory))
         plt.close()
 
         plt.figure()
         plt.title('Test Losses')
         plt.ylabel('Mean Test Loss')
-        x_labels = ('Baseline', 'SGD', 'Adam', 'Stacked Optimizer')
+        x_labels = ('Baseline', 'SGD', 'Adam', 'Meta Optimizer')
         x_pos = np.arange(len(x_labels))
         performance = [self.results['{}_test_loss'.format('_'.join(label.lower().split(' ')))] for label in x_labels]
         plt.bar(x_pos, performance, align='center', alpha=0.5)
         plt.xticks(x_pos, x_labels)
-        plt.savefig('{}/test_loss.png'.format(self.results_directory))
+        plt.savefig('{}/test_loss.pdf'.format(self.results_directory))
         plt.close()
 
         plt.figure()
         plt.title('Test Accuracies')
         plt.ylabel('Mean Test Accuracy')
-        x_labels = ('Baseline', 'SGD', 'Adam', 'Stacked Optimizer')
+        x_labels = ('Baseline', 'SGD', 'Adam', 'Meta Optimizer')
         x_pos = np.arange(len(x_labels))
         performance = [self.results['{}_test_accuracy'.format('_'.join(label.lower().split(' ')))] for label in x_labels]
         plt.bar(x_pos, performance, align='center', alpha=0.5)
         plt.xticks(x_pos, x_labels)
-        plt.savefig('{}/test_accuracy.png'.format(self.results_directory))
+        plt.savefig('{}/test_accuracy.pdf'.format(self.results_directory))
         plt.close()

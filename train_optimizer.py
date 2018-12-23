@@ -60,11 +60,27 @@ def meta_train_instance(optimizer, task, module_index, config, meta_config, text
     train_evaluator, test_evaluator = evaluators
     freeze_weights(dh_model, num_layers=meta_config['num_frozen_layers'])
 
+    #
+    #initial_optimizer = Adam(dh_model.task_head.parameters(), lr=config['lr'], betas=(config['b1'], config['b2']), eps=config['eps'])
     optimizer.initialize_params(dh_model, learn_initialization_indices)
     optimizer.reset_state()
+    last_layer_index = len(optimizer.optimizers) - 1
+    for epoch in range(config['n_iter']):
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, [module_index], [last_layer_index], verbose)
+    #
+
+    #optimizer.initialize_params(dh_model, learn_initialization_indices)
+    #optimizer.reset_state()
 
     for epoch in range(config['n_iter']):
-        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, module_index, verbose)
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, [module_index], [0,1,2,3,4,5], verbose)
+
+    for epoch in range(config['n_iter']):
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, [module_index], [6,7,8,9,10,11], verbose)
+
+    #for epoch in range(config['n_iter']):
+    #    tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, [module_index], None, verbose)
+
     loss, accuracy = test_epoch(tuned_dh_model, test_dataloader, test_evaluator, verbose)
 
     meta_optimizer.zero_grad()
@@ -80,11 +96,27 @@ def meta_test_instance(optimizer, task, config, meta_config, text_encoder, devic
     train_evaluator, test_evaluator = evaluators
     freeze_weights(dh_model, num_layers=meta_config['num_frozen_layers'])
 
+    #
+    #initial_optimizer = Adam(dh_model.task_head.parameters(), lr=config['lr'], betas=(config['b1'], config['b2']), eps=config['eps'])
     optimizer.initialize_params(dh_model, learn_initialization_indices)
     optimizer.reset_state()
+    last_layer_index = len(optimizer.optimizers) - 1
+    for epoch in range(config['n_iter']):
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, [last_layer_index], verbose)
+    #
+
+    #optimizer.initialize_params(dh_model, learn_initialization_indices)
+    #optimizer.reset_state()
 
     for epoch in range(config['n_iter']):
-        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, [0,1,2,3,4,5], verbose)
+
+    for epoch in range(config['n_iter']):
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, [6,7,8,9,10,11], verbose)
+
+    #for epoch in range(config['n_iter']):
+    #    tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, None, verbose)
+
     loss, accuracy = test_epoch(tuned_dh_model, test_dataloader, test_evaluator, verbose)
 
     return loss.cpu().item(), accuracy
@@ -99,7 +131,7 @@ def meta_test_instance_alternative_optimizer(optimizer_class, optimizer_argument
     optimizer = optimizer_class(dh_model.parameters(), **optimizer_arguments)
 
     for epoch in range(config['n_iter']):
-        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, None, verbose)
     loss, accuracy = test_epoch(tuned_dh_model, test_dataloader, test_evaluator, verbose)
 
     return loss.cpu().item(), accuracy
@@ -114,19 +146,19 @@ def meta_test_instance_baseline(task, config, text_encoder, device, verbose):
     optimizer = Adam(dh_model.parameters(), lr=config['lr'], betas=(config['b1'], config['b2']), eps=config['eps'])
 
     for epoch in range(config['n_iter']):
-        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, verbose)
+        tuned_dh_model = train_epoch(dh_model, optimizer, train_dataloader, train_evaluator, None, None, verbose)
     loss, accuracy = test_epoch(tuned_dh_model, test_dataloader, test_evaluator, verbose)
 
     return loss.cpu().item(), accuracy
 
-def train_epoch(dh_model, optimizer, dataloader, evaluator, module_index, verbose):
+def train_epoch(dh_model, optimizer, dataloader, evaluator, module_indices, update_indices, verbose):
     for x, m, y in get_iterator(dataloader, False):
         lm_logits, task_logits = dh_model(x)
         double_head_loss, task_loss, lm_loss = evaluator.compute_double_head_loss(x, y, m, lm_logits, task_logits)
         dh_model.zero_grad()
         double_head_loss.backward()
         if isinstance(optimizer, StackedOptimizer):
-            tuned_dh_model = optimizer(dh_model, double_head_loss, module_index)
+            tuned_dh_model = optimizer(dh_model, double_head_loss, module_indices, update_indices)
         else:
             optimizer.step()
             tuned_dh_model = dh_model
@@ -233,7 +265,7 @@ if __name__ == '__main__':
     parser.add_argument('--config_path', type=str, default='schema/train_optimizer_config.json')
     parser.add_argument('--task_directory_path', type=str)
     parser.add_argument('--load_directory_path', type=str)
-    parser.add_argument('--load_epoch', type=int)
+    parser.add_argument('--load_epoch', type=str)
 
     args = parser.parse_args()
 
@@ -257,6 +289,7 @@ if __name__ == '__main__':
     test_tasks, validation_tasks, train_tasks = np.split(tasks, [test_tasks_size, test_tasks_size + validation_tasks_size])
 
     task_path = args.task_directory_path + np.random.choice(train_tasks)
+    task_path = '/users/data/metanlp/experiments/twitter_experiment/tasks/deflategate_sampled_task_1_of_59.json'
     task = get_document(task_path, 'schema/task_schema.json')
     dh_model, dataloaders, evaluators = prepare_experiment(config, task, text_encoder, device, verbose)
     train_dataloader, test_dataloader = dataloaders
@@ -275,21 +308,15 @@ if __name__ == '__main__':
 
     for meta_epoch in range(meta_config['meta_epochs']):
         verbose_print(verbose, 'Running meta-epoch {}'.format(meta_epoch))
-        meta_train_epoch(logger, optimizer, train_tasks, config, meta_config, text_encoder, device, verbose)
-        meta_validation_epoch(logger, optimizer, validation_tasks, config, meta_config, text_encoder, device, verbose)
-        if log and meta_epoch < meta_config['meta_epochs'] - 1:
-            logger.log()
-            logger.plot()
-            optimizer.local_model = None
-            for sub_optimizer in optimizer.optimizers:
-                for param in sub_optimizer.local_module.parameters():
-                    param = None
-            torch.save(optimizer.state_dict(), os.path.join(logger.results_directory, 'weights_{}.pth'.format(meta_epoch)))
+        for split_index, task_split in enumerate(np.array_split(np.array(train_tasks), 8)):
+            meta_train_epoch(logger, optimizer, task_split, config, meta_config, text_encoder, device, verbose)
+            meta_validation_epoch(logger, optimizer, validation_tasks, config, meta_config, text_encoder, device, verbose)
+            if log:
+                logger.log()
+                logger.plot()
+                torch.save(optimizer.state_dict(), os.path.join(logger.results_directory, 'weights_{}_{}.pth'.format(meta_epoch, split_index)))
     meta_test_epoch(logger, optimizer, test_tasks, config, meta_config, text_encoder, device, verbose)
     if log:
         logger.log()
         logger.plot()
-        for sub_optimizer in optimizer.optimizers:
-            for param in sub_optimizer.local_module.parameters():
-                param = None
         torch.save(optimizer.state_dict(), os.path.join(logger.results_directory, 'weights_{}.pth'.format(meta_epoch)))

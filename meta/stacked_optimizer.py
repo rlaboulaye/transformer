@@ -42,12 +42,14 @@ class StackedOptimizer(nn.Module):
 			optimizer.initialize_params()
 		self.local_model.copy_params_to(model)
 
-	def forward(self, model_with_grads, loss, learning_module_index):
+	def forward(self, model_with_grads, loss, learning_module_indices, update_indices=None):
 		loss_t = loss.clone().detach().view(-1, 1)
 		modules = [module for module in model_with_grads.modules() if len([param for param in module._parameters.values() if param is not None and param.requires_grad]) > 0]
 		for module_index, module in enumerate(modules):
+			if update_indices is not None and module_index not in update_indices:
+				continue
 			optimizer = self.optimizers[module_index]
-			if learning_module_index == module_index:
+			if learning_module_indices is not None and module_index in learning_module_indices:
 				optimizer(module, loss_t)
 			else:
 				with torch.no_grad():

@@ -59,6 +59,7 @@ class LSTMOptimizer(nn.Module):
 		self.W_theta.bias.data.uniform_(11., 12.)
 		self.W_grad.weight.data.uniform_(-window, window)
 		bias_init = -9.5 - .15 * dist_from_output ** 1.6
+		bias_init = -9.5
 		self.W_grad.bias.data.uniform_(bias_init, bias_init - .5)
 
 	def to(self, device):
